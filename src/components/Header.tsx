@@ -108,10 +108,10 @@ export const Header: React.FC<HeaderProps> = ({
                   className="text-xs font-semibold bg-[#FAF8F5] hover:bg-[#F3EFE6] border border-[#E8E4DC] rounded-xl px-2 py-0.5 text-stone-800 focus:outline-none focus:border-[#2C6E49] cursor-pointer"
                   title="Select Gemini Model Tier (Pro vs Flash)"
                 >
-                  <option value="gemini-2.0-flash">⚡ 2.0 Flash (Recommended)</option>
-                  <option value="gemini-1.5-flash">⚡ 1.5 Flash (High Stability)</option>
+                  <option value="gemini-3.8-flash">⚡ 3.8 Flash (Recommended)</option>
+                  <option value="gemini-2.0-flash">⚡ 2.0 Flash</option>
+                  <option value="gemini-3.5-flash-lite">⚡ 3.5 Flash-Lite</option>
                   <option value="gemini-1.5-pro">🧠 1.5 Pro (Pro User)</option>
-                  <option value="gemini-2.0-flash-lite">⚡ 2.0 Flash-Lite</option>
                 </select>
               </div>
             </div>

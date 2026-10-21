@@ -23,7 +23,7 @@ export const GeminiAuthModal: React.FC<GeminiAuthModalProps> = ({
   const [apiKeyInput, setApiKeyInput] = useState(currentKey);
   const [selectedModel, setSelectedModel] = useState(() => {
     if (!currentModel || currentModel.includes('2.5') || currentModel.includes('3-pro')) {
-      return 'gemini-2.0-flash';
+      return 'gemini-3.8-flash';
     }
     return currentModel;
   });
@@ -48,8 +48,8 @@ export const GeminiAuthModal: React.FC<GeminiAuthModalProps> = ({
     setErrorMessage('');
 
     try {
-      // If legacy 2.5 was chosen, seamlessly use 2.0-flash
-      const modelToTest = selectedModel.includes('2.5') ? 'gemini-2.0-flash' : selectedModel;
+      // If legacy 2.5 was chosen, seamlessly use 3.8-flash
+      const modelToTest = selectedModel.includes('2.5') ? 'gemini-3.8-flash' : selectedModel;
       if (modelToTest !== selectedModel) {
         setSelectedModel(modelToTest);
       }
