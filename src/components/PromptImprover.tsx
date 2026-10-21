@@ -18,17 +18,44 @@ import {
   Bookmark,
   Building,
   RefreshCw,
-  Compass
+  Compass,
+  Camera,
+  Palette,
+  AlertCircle,
+  Plus,
+  Sliders
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
   generateInAppStudioResult,
   generateInAppImage,
-  GEMINI_MODELS 
+  generateAdditionalArchitecturalView,
+  REASONING_MODELS,
+  IMAGE_GENERATION_MODELS,
+  ARCHITECTURAL_VISUAL_STYLES,
+  ARCHITECTURAL_CAMERA_VIEWS,
+  CAMERA_VIEW_KEYS,
+  VISUAL_STYLE_KEYS,
+  getStoredImageModel,
+  setStoredImageModel,
+  getStoredVisualStyle,
+  setStoredVisualStyle,
+  getStoredCameraView,
+  setStoredCameraView,
+  getStoredResolution,
+  setStoredResolution,
 } from '../utils/geminiApi';
 import { playCompletionChime } from '../utils/soundNotification';
 import { processUploadedFile } from '../utils/fileParser';
-import type { UploadedFileItem, InAppStudioResult, PromptHistoryItem } from '../types';
+import type { 
+  UploadedFileItem, 
+  InAppStudioResult, 
+  PromptHistoryItem,
+  ImageGenerationModelId,
+  ArchitecturalVisualStyle,
+  ArchitecturalCameraView,
+  ImageResolution
+} from '../types';
 
 interface PromptImproverProps {
   apiKey: string;
@@ -64,6 +91,16 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
   const [activeVisualTab, setActiveVisualTab] = useState<'render' | 'floor-plan' | 'comparison'>('render');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [showPromptDetails, setShowPromptDetails] = useState(false);
+
+  // Advanced Architectural Visualization Engine States
+  const [selectedImageModel, setSelectedImageModel] = useState<ImageGenerationModelId>(() => getStoredImageModel());
+  const [selectedVisualStyle, setSelectedVisualStyle] = useState<ArchitecturalVisualStyle>(() => getStoredVisualStyle());
+  const [selectedCameraView, setSelectedCameraView] = useState<ArchitecturalCameraView>(() => getStoredCameraView());
+  const [selectedResolution, setSelectedResolution] = useState<ImageResolution>(() => getStoredResolution());
+  const [selectedActiveViewIndex, setSelectedActiveViewIndex] = useState<number>(0);
+  const [isRenderingAdditionalView, setIsRenderingAdditionalView] = useState<boolean>(false);
+  const [additionalViewError, setAdditionalViewError] = useState<string>('');
+  const [showEngineSettings, setShowEngineSettings] = useState<boolean>(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -135,28 +172,32 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
 
     setIsGenerating(true);
     setImageStatus('generating');
-    setGenerationStage('Synthesizing project requirements with Philippine architectural intelligence...');
+    setSelectedActiveViewIndex(0);
+    setAdditionalViewError('');
+    setGenerationStage('Stage 1: Gemini Architectural Analysis — Extracting concept, massing, materials, and tropical orientation...');
 
     try {
-      // Step 1: Status update
       const stageTimer1 = setTimeout(() => {
-        setGenerationStage('Applying tropical bioclimatic orientation & Philippine Building Laws (PD 1096)...');
-      }, 1400);
-
-      const stageTimer2 = setTimeout(() => {
-        setGenerationStage('Generating high-resolution architectural visual & presentation dossier...');
-      }, 3200);
+        setGenerationStage(
+          `Stage 2: Photorealistic Synthesis — Rendering with ${
+            IMAGE_GENERATION_MODELS.find((m) => m.id === selectedImageModel)?.name || selectedImageModel
+          } (${selectedResolution})...`
+        );
+      }, 2400);
 
       const result = await generateInAppStudioResult({
         apiKey,
-        model: currentModel,
+        reasoningModel: currentModel,
+        imageModel: selectedImageModel,
         prompt: textToUse,
         fileItem: attachedFile || undefined,
         aspectRatio,
+        resolution: selectedResolution,
+        visualStyle: selectedVisualStyle,
+        viewType: selectedCameraView,
       });
 
       clearTimeout(stageTimer1);
-      clearTimeout(stageTimer2);
 
       setStudioResult(result);
       if (result.imageUrl) {
@@ -201,9 +242,10 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
         origin: { y: 0.6 },
         colors: ['#2C6E49', '#C85A32', '#1B4332'],
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Architectural generation failed', err);
       setImageStatus('failed');
+      setStudioResult((prev) => (prev ? { ...prev, renderError: err?.message || String(err) } : null));
     } finally {
       setIsGenerating(false);
       setGenerationStage('');
@@ -216,16 +258,32 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
     setIsRetryingImage(true);
     setImageStatus('generating');
     try {
+      const promptToRender = studioResult.photorealisticPrompt || studioResult.enhancedPrompt || userInput;
       const imgRes = await generateInAppImage({
         apiKey,
-        prompt: studioResult.enhancedPrompt || userInput,
+        prompt: promptToRender,
+        imageModel: selectedImageModel,
         aspectRatio,
+        resolution: selectedResolution,
+        visualStyle: selectedVisualStyle,
+        viewType: selectedCameraView,
         fileItem: attachedFile || undefined,
       });
 
       if (imgRes?.imageUrl) {
-        setStudioResult((prev) => (prev ? { ...prev, imageUrl: imgRes.imageUrl, imageSource: imgRes.source } : null));
+        setStudioResult((prev) =>
+          prev
+            ? {
+                ...prev,
+                imageUrl: imgRes.imageUrl!,
+                imageSource: imgRes.source,
+                imageModelUsed: selectedImageModel,
+                renderError: undefined,
+              }
+            : null
+        );
         setImageStatus('completed');
+        setSelectedActiveViewIndex(0);
         playCompletionChime();
         confetti({
           particleCount: 40,
@@ -234,14 +292,79 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
           colors: ['#2C6E49', '#C85A32', '#1B4332'],
         });
       } else {
+        setStudioResult((prev) => (prev ? { ...prev, renderError: imgRes.error } : null));
         setImageStatus('failed');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Retry render failed:', err);
+      setStudioResult((prev) => (prev ? { ...prev, renderError: err?.message || String(err) } : null));
       setImageStatus('failed');
     } finally {
       setIsRetryingImage(false);
     }
+  };
+
+  // Dedicated handler to generate an additional perspective view of the same design
+  const handleGenerateAdditionalView = async (targetView: ArchitecturalCameraView) => {
+    if (!studioResult || !apiKey) return;
+    if (!studioResult.architecturalSpec) return;
+
+    setIsRenderingAdditionalView(true);
+    setAdditionalViewError('');
+    try {
+      const newView = await generateAdditionalArchitecturalView({
+        apiKey,
+        imageModel: selectedImageModel,
+        architecturalSpec: studioResult.architecturalSpec,
+        targetView,
+        visualStyle: selectedVisualStyle,
+        aspectRatio,
+        resolution: selectedResolution,
+        fileItem: attachedFile || undefined,
+      });
+
+      setStudioResult((prev) => {
+        if (!prev) return null;
+        const currentViews = prev.additionalViews || [];
+        const nextViews = [...currentViews.filter((v) => v.viewType !== targetView), newView];
+        return {
+          ...prev,
+          additionalViews: nextViews,
+        };
+      });
+
+      setTimeout(() => {
+        setStudioResult((fresh) => {
+          if (fresh?.additionalViews) {
+            setSelectedActiveViewIndex(fresh.additionalViews.length);
+          }
+          return fresh;
+        });
+      }, 50);
+
+      playCompletionChime();
+      confetti({
+        particleCount: 30,
+        spread: 50,
+        origin: { y: 0.7 },
+        colors: ['#2C6E49', '#FAF8F5'],
+      });
+    } catch (err: any) {
+      console.error('Additional view generation failed:', err);
+      setAdditionalViewError(err?.message || `Failed to render ${targetView}`);
+    } finally {
+      setIsRenderingAdditionalView(false);
+    }
+  };
+
+  const handleDownloadActiveImage = (url: string, filenameLabel: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    const cleanName = filenameLabel.replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.download = `arkiteki-${cleanName}-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleCopyDossier = () => {
@@ -297,6 +420,48 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
+
+  // Compute all available perspective views (Hero + Additional Perspectives)
+  const allViews: Array<{
+    id: string;
+    viewType: ArchitecturalCameraView;
+    imageUrl: string;
+    imageModelUsed?: string;
+    resolution?: ImageResolution;
+    visualStyle?: ArchitecturalVisualStyle;
+    timestamp: number;
+    promptUsed?: string;
+  }> = [];
+
+  if (studioResult?.imageUrl) {
+    allViews.push({
+      id: 'hero-view',
+      viewType: studioResult.viewType || selectedCameraView,
+      imageUrl: studioResult.imageUrl,
+      imageModelUsed: studioResult.imageModelUsed || selectedImageModel,
+      resolution: studioResult.resolution || selectedResolution,
+      visualStyle: studioResult.visualStyle || selectedVisualStyle,
+      timestamp: studioResult.timestamp,
+      promptUsed: studioResult.photorealisticPrompt || studioResult.enhancedPrompt,
+    });
+  }
+
+  if (studioResult?.additionalViews && studioResult.additionalViews.length > 0) {
+    studioResult.additionalViews.forEach((v) => {
+      allViews.push({
+        id: v.id,
+        viewType: v.viewType,
+        imageUrl: v.imageUrl,
+        imageModelUsed: v.imageModelUsed,
+        resolution: v.resolution,
+        visualStyle: v.visualStyle,
+        timestamp: v.timestamp,
+        promptUsed: v.promptUsed,
+      });
+    });
+  }
+
+  const activeView = allViews[selectedActiveViewIndex] || allViews[0] || null;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 md:py-8 space-y-8">
@@ -457,62 +622,193 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
           </div>
         </div>
 
-        {/* Primary Action Button Bar */}
-        <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[#F0ECE1] dark:border-stone-800">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-stone-600 dark:text-stone-400">Model:</span>
-              <select
-                value={currentModel}
-                onChange={(e) => onModelUpdated(e.target.value)}
-                className="text-xs font-medium bg-[#FAF8F5] dark:bg-stone-950 border border-[#E8E4DC] dark:border-stone-800 rounded-xl px-2.5 py-1.5 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49] dark:focus:border-emerald-500 cursor-pointer"
-              >
-                {GEMINI_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.tag} {m.isPro ? '(Pro User)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-stone-600 dark:text-stone-400">Ratio:</span>
-              <div className="flex items-center gap-1 bg-[#FAF8F5] dark:bg-stone-950 p-0.5 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
-                {(['16:9', '4:3', '1:1'] as const).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setAspectRatio(r)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition cursor-pointer ${
-                      aspectRatio === r
-                        ? 'bg-[#2C6E49] text-white shadow-xs'
-                        : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Studio Dual-Engine Configuration & Architectural Controls */}
+        <div className="pt-4 border-t border-[#F0ECE1] dark:border-stone-800 space-y-4">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setShowEngineSettings(!showEngineSettings)}
+              className="flex items-center gap-2 text-xs font-bold text-stone-800 dark:text-stone-200 hover:text-[#2C6E49] dark:hover:text-emerald-400 transition cursor-pointer"
+            >
+              <Sliders className="w-3.5 h-3.5 text-[#2C6E49] dark:text-emerald-400" />
+              <span>Studio Dual-Engine & Camera Settings</span>
+              {showEngineSettings ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            <span className="text-[11px] font-mono text-stone-400 dark:text-stone-500 hidden sm:inline">
+              Reasoning: {currentModel} • Image: {selectedImageModel} • {selectedResolution}
+            </span>
           </div>
 
-          <button
-            onClick={() => handleGenerateDesign()}
-            disabled={isGenerating || (!userInput.trim() && !attachedFile)}
-            className="w-full sm:w-auto px-7 py-3 rounded-2xl bg-[#2C6E49] hover:bg-[#23583a] dark:bg-emerald-600 dark:hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs sm:text-sm transition cursor-pointer shadow-md shadow-[#2C6E49]/20 flex items-center justify-center gap-2"
-          >
-            {isGenerating ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Synthesizing Architectural Design...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                <span>Generate Architectural Design & Visuals</span>
-              </>
-            )}
-          </button>
+          {showEngineSettings && (
+            <div className="bg-[#FAF8F5] dark:bg-stone-950 border border-[#E8E4DC] dark:border-stone-800 rounded-2xl p-4 space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {/* 1. Reasoning Model */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                    <Building className="w-3 h-3 text-[#2C6E49] dark:text-emerald-400" />
+                    <span>Architectural Reasoning Model</span>
+                  </label>
+                  <select
+                    value={currentModel}
+                    onChange={(e) => onModelUpdated(e.target.value)}
+                    className="w-full text-xs font-medium bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 rounded-xl px-2.5 py-2 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49] dark:focus:border-emerald-500 cursor-pointer"
+                  >
+                    {REASONING_MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} {m.isPro ? '★' : ''} ({m.badge})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 2. Image Engine */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                    <ImageIcon className="w-3 h-3 text-[#C85A32] dark:text-amber-500" />
+                    <span>Photorealistic Image Engine</span>
+                  </label>
+                  <select
+                    value={selectedImageModel}
+                    onChange={(e) => {
+                      const val = e.target.value as ImageGenerationModelId;
+                      setSelectedImageModel(val);
+                      setStoredImageModel(val);
+                    }}
+                    className="w-full text-xs font-medium bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 rounded-xl px-2.5 py-2 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49] dark:focus:border-emerald-500 cursor-pointer"
+                  >
+                    {IMAGE_GENERATION_MODELS.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.badge})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Visual Style */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                    <Palette className="w-3 h-3 text-[#2C6E49] dark:text-emerald-400" />
+                    <span>Visual Style & Lighting</span>
+                  </label>
+                  <select
+                    value={selectedVisualStyle}
+                    onChange={(e) => {
+                      const val = e.target.value as ArchitecturalVisualStyle;
+                      setSelectedVisualStyle(val);
+                      setStoredVisualStyle(val);
+                    }}
+                    className="w-full text-xs font-medium bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 rounded-xl px-2.5 py-2 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49] dark:focus:border-emerald-500 cursor-pointer"
+                  >
+                    {VISUAL_STYLE_KEYS.map((key) => (
+                      <option key={key} value={key}>
+                        {ARCHITECTURAL_VISUAL_STYLES[key]?.label || key}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. Camera Perspective View */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                    <Camera className="w-3 h-3 text-[#C85A32] dark:text-amber-500" />
+                    <span>Initial Perspective View</span>
+                  </label>
+                  <select
+                    value={selectedCameraView}
+                    onChange={(e) => {
+                      const val = e.target.value as ArchitecturalCameraView;
+                      setSelectedCameraView(val);
+                      setStoredCameraView(val);
+                    }}
+                    className="w-full text-xs font-medium bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 rounded-xl px-2.5 py-2 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49] dark:focus:border-emerald-500 cursor-pointer"
+                  >
+                    {CAMERA_VIEW_KEYS.map((key) => (
+                      <option key={key} value={key}>
+                        {ARCHITECTURAL_CAMERA_VIEWS[key]?.label || key}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 5. Render Resolution */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                    <Maximize2 className="w-3 h-3 text-[#2C6E49] dark:text-emerald-400" />
+                    <span>Render Resolution</span>
+                  </label>
+                  <div className="flex items-center gap-1 bg-white dark:bg-stone-900 p-1 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
+                    {(['1K', '2K', '4K'] as const).map((res) => (
+                      <button
+                        key={res}
+                        type="button"
+                        onClick={() => {
+                          setSelectedResolution(res);
+                          setStoredResolution(res);
+                        }}
+                        className={`flex-1 py-1 rounded-lg text-xs font-mono font-bold transition cursor-pointer ${
+                          selectedResolution === res
+                            ? 'bg-[#2C6E49] text-white shadow-xs'
+                            : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
+                        }`}
+                      >
+                        {res}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 6. Aspect Ratio */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                    <Layers className="w-3 h-3 text-[#C85A32] dark:text-amber-500" />
+                    <span>Aspect Ratio</span>
+                  </label>
+                  <div className="flex items-center gap-1 bg-white dark:bg-stone-900 p-1 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
+                    {(['16:9', '4:3', '1:1'] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setAspectRatio(r)}
+                        className={`flex-1 py-1 rounded-lg text-xs font-mono font-bold transition cursor-pointer ${
+                          aspectRatio === r
+                            ? 'bg-[#2C6E49] text-white shadow-xs'
+                            : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Row */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#2C6E49] dark:bg-emerald-400" />
+              <span>Two-Stage Pipeline: Architectural Analysis → Multimodal Photorealistic Render</span>
+            </div>
+
+            <button
+              onClick={() => handleGenerateDesign()}
+              disabled={isGenerating || (!userInput.trim() && !attachedFile)}
+              className="w-full sm:w-auto px-7 py-3 rounded-2xl bg-[#2C6E49] hover:bg-[#23583a] dark:bg-emerald-600 dark:hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs sm:text-sm transition cursor-pointer shadow-md shadow-[#2C6E49]/20 flex items-center justify-center gap-2"
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Synthesizing Architectural Design...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>Generate Architectural Design & Visuals</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Live Generation Progress Message */}
@@ -618,14 +914,100 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
 
           {/* 1. VISUAL SHOWCASE: Tab-based delivery */}
           {activeVisualTab === 'render' && (
-            <div className="space-y-2 animate-fade-in">
-              {studioResult.imageUrl ? (
-                <div className="relative group rounded-2xl overflow-hidden border border-[#E8E4DC] dark:border-stone-800 bg-stone-950 max-h-[520px] flex items-center justify-center">
+            <div className="space-y-4 animate-fade-in">
+              {/* Multi-View Perspective Tabs & Gallery Strip */}
+              {allViews.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-[#FAF8F5] dark:bg-stone-950 p-2.5 rounded-2xl border border-[#E8E4DC] dark:border-stone-800">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase font-mono px-2">
+                      Views:
+                    </span>
+                    {allViews.map((v, idx) => (
+                      <button
+                        key={v.id || idx}
+                        type="button"
+                        onClick={() => setSelectedActiveViewIndex(idx)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                          selectedActiveViewIndex === idx
+                            ? 'bg-[#2C6E49] text-white shadow-xs'
+                            : 'bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:text-stone-900 border border-[#E8E4DC] dark:border-stone-800'
+                        }`}
+                      >
+                        <Camera className="w-3 h-3" />
+                        <span>{ARCHITECTURAL_CAMERA_VIEWS[v.viewType]?.label || v.viewType}</span>
+                        {idx === 0 && (
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-black/20 text-white">
+                            Hero
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Add Perspective View Buttons */}
+                  {studioResult.architecturalSpec && (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {CAMERA_VIEW_KEYS.filter(
+                        (target) => !allViews.some((av) => av.viewType === target)
+                      ).map((target) => (
+                        <button
+                          key={target}
+                          type="button"
+                          onClick={() => handleGenerateAdditionalView(target)}
+                          disabled={isRenderingAdditionalView}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-[#1B4332] dark:text-emerald-300 text-[11px] font-medium flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                          title={`Render ${ARCHITECTURAL_CAMERA_VIEWS[target]?.label || target} of this exact building`}
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>{ARCHITECTURAL_CAMERA_VIEWS[target]?.label || target}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* In-Progress Additional View Notification */}
+              {isRenderingAdditionalView && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-2.5 text-xs text-[#1B4332] dark:text-emerald-300 animate-pulse">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#2C6E49] dark:text-emerald-400" />
+                  <span>
+                    Rendering additional perspective view with {selectedImageModel} ({selectedResolution})...
+                  </span>
+                </div>
+              )}
+
+              {/* Additional View Error Notice */}
+              {additionalViewError && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl flex items-center gap-2 text-xs text-rose-700 dark:text-rose-300">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{additionalViewError}</span>
+                </div>
+              )}
+
+              {/* Primary Active Image Display */}
+              {activeView ? (
+                <div className="relative group rounded-2xl overflow-hidden border border-[#E8E4DC] dark:border-stone-800 bg-stone-950 max-h-[560px] flex items-center justify-center">
                   <img
-                    src={studioResult.imageUrl}
-                    alt="Architectural Render"
-                    className="w-full h-auto max-h-[520px] object-contain transition group-hover:scale-[1.01]"
+                    src={activeView.imageUrl}
+                    alt={activeView.viewType}
+                    className="w-full h-auto max-h-[560px] object-contain transition group-hover:scale-[1.005]"
                   />
+
+                  {/* Top-Left View & Model Badges */}
+                  <div className="absolute top-3 left-3 flex flex-wrap items-center gap-2 pointer-events-none">
+                    <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white border border-white/10 uppercase tracking-wide">
+                      {ARCHITECTURAL_CAMERA_VIEWS[activeView.viewType]?.label || activeView.viewType}
+                    </span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-[#2C6E49]/85 backdrop-blur-md text-white border border-white/10">
+                      {activeView.imageModelUsed || selectedImageModel}
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-1 rounded-lg bg-black/60 backdrop-blur-md text-stone-300 border border-white/10">
+                      {activeView.resolution || studioResult.resolution || selectedResolution}
+                    </span>
+                  </div>
+
+                  {/* Bottom-Right Controls */}
                   <div className="absolute bottom-3 right-3 flex items-center gap-2 bg-stone-900/85 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shadow-lg">
                     <button
                       onClick={() => setLightboxOpen(true)}
@@ -634,54 +1016,78 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
                     >
                       <Maximize2 className="w-4 h-4" />
                     </button>
-                    <a
-                      href={studioResult.imageUrl}
-                      download={`arkiteki-render-${Date.now()}.png`}
-                      className="p-1.5 text-white hover:text-emerald-400 rounded-lg hover:bg-white/10 transition flex items-center gap-1 text-xs"
+                    <button
+                      onClick={() => handleDownloadActiveImage(activeView.imageUrl, activeView.viewType)}
+                      className="p-1.5 text-white hover:text-emerald-400 rounded-lg hover:bg-white/10 transition flex items-center gap-1 text-xs cursor-pointer"
                       title="Download Render Image"
                     >
                       <Download className="w-4 h-4" />
                       <span>Download PNG</span>
-                    </a>
+                    </button>
                   </div>
                 </div>
               ) : isRetryingImage ? (
                 <div className="h-64 rounded-2xl border-2 border-dashed border-[#2C6E49]/40 bg-emerald-50/30 dark:bg-emerald-950/20 flex flex-col items-center justify-center gap-2.5 p-6 text-center animate-pulse">
                   <RefreshCw className="w-6 h-6 text-[#2C6E49] dark:text-emerald-400 animate-spin" />
                   <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">
-                    Synthesizing photorealistic architectural perspective...
+                    Synthesizing photorealistic architectural perspective with {selectedImageModel} ({selectedResolution})...
                   </span>
                 </div>
               ) : (
-                <div className="p-8 rounded-2xl border-2 border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 flex flex-col items-center justify-center gap-3 text-center">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 flex items-center justify-center">
-                    <ImageIcon className="w-5 h-5" />
+                <div className="p-8 rounded-2xl border-2 border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 flex flex-col items-center justify-center gap-4 text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 flex items-center justify-center">
+                    <AlertCircle className="w-6 h-6" />
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5 max-w-md">
                     <p className="text-sm font-bold text-stone-900 dark:text-stone-100 m-0">
-                      Photorealistic Render Plate
+                      Photorealistic Render Engine Notice
                     </p>
-                    <p className="text-xs text-stone-500 dark:text-stone-400 m-0 max-w-md">
-                      {imageStatus === 'failed'
-                        ? 'Visual plate render encountered an issue. Click below to retry generating the photorealistic perspective.'
-                        : 'The presentation dossier has been prepared. Click below to render the photorealistic visual plate.'}
+                    <p className="text-xs text-stone-600 dark:text-stone-400 m-0 leading-relaxed">
+                      {studioResult.renderError || imageStatus === 'failed'
+                        ? 'The image engine did not return a raster render. Arkiteki does NOT produce cartoon SVGs or fake vector drawings.'
+                        : 'The architectural presentation dossier is prepared. Click below to render the photorealistic visual plate.'}
                     </p>
+                    {studioResult.renderError && (
+                      <div className="mt-2 p-2.5 rounded-xl bg-white dark:bg-stone-900 border border-amber-200 dark:border-amber-800/60 font-mono text-[11px] text-amber-900 dark:text-amber-200 text-left overflow-x-auto max-h-24">
+                        {studioResult.renderError}
+                      </div>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleRetryImageRender}
-                    className="px-5 py-2.5 rounded-xl bg-[#2C6E49] hover:bg-[#23583a] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm transition"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Generate Photorealistic Render</span>
-                  </button>
+
+                  {/* Engine Selection for Retry */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <select
+                      value={selectedImageModel}
+                      onChange={(e) => {
+                        const val = e.target.value as ImageGenerationModelId;
+                        setSelectedImageModel(val);
+                        setStoredImageModel(val);
+                      }}
+                      className="text-xs font-medium bg-white dark:bg-stone-900 border border-amber-300 dark:border-amber-800 rounded-xl px-3 py-2 text-stone-800 dark:text-stone-200 focus:outline-none cursor-pointer"
+                    >
+                      {IMAGE_GENERATION_MODELS.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.badge})
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      onClick={handleRetryImageRender}
+                      className="px-5 py-2.5 rounded-xl bg-[#2C6E49] hover:bg-[#23583a] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm transition"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Retry Photorealistic Render</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
-              {studioResult.imageUrl && (
-                <div className="flex items-center justify-between text-[11px] text-stone-400 dark:text-stone-500 font-mono px-1">
+              {activeView && (
+                <div className="flex flex-wrap items-center justify-between text-[11px] text-stone-400 dark:text-stone-500 font-mono px-1 gap-2">
                   <span>Direct Visual Work • 24mm tilt-shift plumb architectural alignment</span>
-                  <span>Ready for Thesis & Presentation Boards</span>
+                  <span>Authentic Raster Render • Ready for Thesis & Juror Presentation</span>
                 </div>
               )}
             </div>
@@ -888,23 +1294,46 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
       )}
 
       {/* Fullscreen Lightbox Modal */}
-      {lightboxOpen && studioResult?.imageUrl && (
+      {lightboxOpen && activeView?.imageUrl && (
         <div
           onClick={() => setLightboxOpen(false)}
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
         >
-          <div className="relative max-w-6xl max-h-screen p-2" onClick={(e) => e.stopPropagation()}>
+          <div className="relative max-w-6xl max-h-screen p-2 flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <div className="w-full flex items-center justify-between mb-3 text-white px-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-[#2C6E49] text-white">
+                  {ARCHITECTURAL_CAMERA_VIEWS[activeView.viewType]?.label || activeView.viewType}
+                </span>
+                <span className="text-xs text-stone-300 font-mono hidden sm:inline">
+                  {activeView.imageModelUsed || selectedImageModel} • {activeView.resolution || selectedResolution}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadActiveImage(activeView.imageUrl, activeView.viewType)}
+                  className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Download High-Res Render"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download High-Res PNG</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(false)}
+                  className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white transition cursor-pointer"
+                  title="Close Lightbox"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
             <img
-              src={studioResult.imageUrl}
-              alt="Fullscreen Render"
-              className="max-h-[85vh] max-w-full rounded-2xl object-contain mx-auto shadow-2xl border border-white/10"
+              src={activeView.imageUrl}
+              alt={activeView.viewType}
+              className="max-h-[82vh] max-w-full rounded-2xl object-contain mx-auto shadow-2xl border border-white/10"
             />
-            <button
-              onClick={() => setLightboxOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl bg-black/60 text-white hover:bg-black/80 transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
         </div>
       )}

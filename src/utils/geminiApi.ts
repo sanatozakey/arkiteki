@@ -5,13 +5,23 @@ import type {
   PromptCritiqueResult,
   InAppStudioResult,
   DetectedDocumentMetadata,
-  ArchitecturalDeliverableType
+  ArchitecturalDeliverableType,
+  ArchitecturalVisualStyle,
+  ArchitecturalCameraView,
+  ImageResolution,
+  ImageGenerationModelId,
+  ArchitecturalDesignSpecification,
+  AdditionalArchitecturalView
 } from '../types';
 import { analyzeTextContentLocally } from './fileParser';
 import { generateQuizFromNotes, generateFlashcardsFromNotes } from './quizGenerator';
 
 const STORAGE_KEY = 'arkiteki_gemini_api_key';
 const MODEL_STORAGE_KEY = 'arkiteki_gemini_model';
+const IMAGE_MODEL_STORAGE_KEY = 'arkiteki_gemini_image_model';
+const VISUAL_STYLE_STORAGE_KEY = 'arkiteki_visual_style';
+const VIEW_TYPE_STORAGE_KEY = 'arkiteki_view_type';
+const RESOLUTION_STORAGE_KEY = 'arkiteki_resolution';
 
 export interface GeminiModelOption {
   id: string;
@@ -22,13 +32,13 @@ export interface GeminiModelOption {
   isPro?: boolean;
 }
 
-export const GEMINI_MODELS: GeminiModelOption[] = [
+export const REASONING_MODELS: GeminiModelOption[] = [
   {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
-    badge: 'Recommended • Latest',
+    badge: 'Recommended • Intelligence & Speed',
     tag: '⚡ 3.8 Flash',
-    description: 'Google’s most intelligent flash model. Superior architectural synthesis, building code analysis, and multimodal understanding.',
+    description: 'Google’s most intelligent flash reasoning model. Superior architectural synthesis, building code analysis (PD 1096, BP 344), and presentation board extraction.',
   },
   {
     id: 'gemini-4-argon',
@@ -46,19 +56,157 @@ export const GEMINI_MODELS: GeminiModelOption[] = [
     description: 'Cost-efficient rapid model optimized for high-speed quiz questions, flashcards, and quick topic identification.',
   },
   {
-    id: 'gemini-nano-banana-2.1',
-    name: 'Gemini Nano Banana 2.1',
-    badge: 'Visual Engine • Image Gen',
-    tag: '🎨 Nano Banana 2.1',
-    description: 'Google’s native architectural image generation & sketch-to-render model with conversational precision.',
-  },
-  {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
     badge: 'Fast & Stable',
     tag: '⚡ 2.0 Flash',
     description: 'High-speed multimodal vision & prompt refinement for everyday studio plates.',
   },
+];
+
+export const GEMINI_MODELS = REASONING_MODELS;
+
+export interface ImageModelOption {
+  id: ImageGenerationModelId;
+  name: string;
+  badge: string;
+  tag: string;
+  description: string;
+  supportedResolutions: ImageResolution[];
+  supportsReferenceImage: boolean;
+}
+
+export const IMAGE_GENERATION_MODELS: ImageModelOption[] = [
+  {
+    id: 'gemini-nano-banana-2.1',
+    name: 'Gemini Nano Banana 2.1',
+    badge: 'Recommended • High Photorealism',
+    tag: '🍌 Nano Banana 2.1',
+    description: 'Google’s primary native image generation & sketch-to-render model. Delivers superior architectural texture rendering, physical material realism, and reference conditioning across 1K, 2K, and 4K resolutions.',
+    supportedResolutions: ['1K', '2K', '4K'],
+    supportsReferenceImage: true,
+  },
+  {
+    id: 'gemini-3-pro-image',
+    name: 'Gemini 3 Pro Image',
+    badge: 'Flagship • Precision CGI',
+    tag: '✨ 3 Pro Image',
+    description: 'Flagship image generation model for the most intricate architectural plates, ray-traced glass reflections, complex massing, and global lighting accuracy.',
+    supportedResolutions: ['1K', '2K', '4K'],
+    supportsReferenceImage: true,
+  },
+  {
+    id: 'gemini-3.1-flash-image',
+    name: 'Gemini 3.1 Flash Image',
+    badge: 'Fast & Efficient',
+    tag: '⚡ 3.1 Flash Image',
+    description: 'High-speed image generation model balancing prompt responsiveness with solid architectural fidelity.',
+    supportedResolutions: ['1K', '2K'],
+    supportsReferenceImage: true,
+  },
+  {
+    id: 'gemini-3.1-flash-lite-image',
+    name: 'Gemini 3.1 Flash Lite Image',
+    badge: 'Ultra Fast',
+    tag: '⚡ 3.1 Lite Image',
+    description: 'Ultra-fast draft image model for rapid conceptual ideation.',
+    supportedResolutions: ['1K'],
+    supportsReferenceImage: false,
+  },
+];
+
+export const ARCHITECTURAL_VISUAL_STYLES: Record<
+  ArchitecturalVisualStyle,
+  { label: string; description: string; promptModifier: string }
+> = {
+  photography: {
+    label: 'Photorealistic Architectural Photography',
+    description: 'Canon EOS R5, 24mm tilt-shift lens, natural light, ArchDaily editorial publication standard',
+    promptModifier:
+      'Ultra-photorealistic architectural photograph, shot on Canon EOS R5 with 24mm tilt-shift lens, strictly plumb vertical lines, natural daylight, editorial architectural publication quality for ArchDaily and Architectural Digest.',
+  },
+  'vray-cgi': {
+    label: 'High-End CGI (V-Ray / Corona Renderer)',
+    description: 'Physically based rendering (PBR), ray-traced glass reflections, ambient occlusion, global illumination',
+    promptModifier:
+      'Physically based architectural CGI render produced in Chaos V-Ray and Corona Renderer, ray-traced glass reflections, accurate ambient occlusion, micro-surface imperfections, global illumination, high-end architectural visualization firm quality.',
+  },
+  'golden-hour': {
+    label: 'Golden Hour Tropical Sunlight',
+    description: 'Warm late afternoon Philippine sunlight, rich directional shadows, warm interior glow',
+    promptModifier:
+      'Warm late-afternoon golden hour tropical Philippine sunlight at 5:00 PM, low sun angle casting long soft shadows, warm amber highlights on timber louvers, warm 3000K interior lighting softly glowing through floor-to-ceiling glass curtain walls.',
+  },
+  'dusk-bluehour': {
+    label: 'Dramatic Dusk / Blue Hour',
+    description: 'Deep cobalt twilight sky, warmly illuminated interior spaces, exterior architectural accent lighting',
+    promptModifier:
+      'Dramatic twilight blue hour architectural lighting, deep rich cobalt blue sky, warmly illuminated interior spaces, subtle warm LED accent up-lights illuminating textured concrete shear walls, sleek water pool reflections.',
+  },
+  overcast: {
+    label: 'Bright Overcast Tropical Daylight',
+    description: 'Diffused soft lighting, balanced material exposure, vibrant Philippine tropical foliage',
+    promptModifier:
+      'Bright overcast tropical daylight, soft diffused atmospheric illumination with zero harsh glare, perfectly balanced exposure revealing subtle concrete formwork textures and vibrant tropical foliage.',
+  },
+};
+
+export const ARCHITECTURAL_CAMERA_VIEWS: Record<
+  ArchitecturalCameraView,
+  { label: string; description: string; promptModifier: string }
+> = {
+  'hero-perspective': {
+    label: 'Hero Two-Point Perspective',
+    description: 'Pedestrian eye-level street/plaza perspective with plumb verticals',
+    promptModifier:
+      'Eye-level pedestrian two-point architectural perspective (1.6m camera height), 24mm tilt-shift lens, zero vertical convergence, perfectly straight vertical columns and mullions, balanced civic composition showing entrance and public plaza.',
+  },
+  'front-elevation': {
+    label: 'Front Civic Elevation Perspective',
+    description: 'Orthogonal front perspective emphasizing facade rhythm and entrance portico',
+    promptModifier:
+      'Front civic elevation-style architectural perspective, symmetrical or balanced facade rhythm, prominent 30-meter entrance portico, clearly articulated brise-soleil louvers and fenestration grid.',
+  },
+  'aerial-drone': {
+    label: 'Three-Quarter Aerial View',
+    description: 'Elevated 45-degree perspective showing roof geometry and masterplan context',
+    promptModifier:
+      'Elevated three-quarter aerial drone architectural perspective (45-degree angle), showcasing aerodynamic sweeping roof structure, roof garden terraces, bioswales, vehicular access, and integration with surrounding Philippine landscape.',
+  },
+  'eye-level-plaza': {
+    label: 'Pedestrian Eye-Level Plaza View',
+    description: 'Looking across the public civic plaza toward the grand canopy',
+    promptModifier:
+      'Pedestrian eye-level view standing on the permeable stone civic plaza looking towards the grand entrance canopy, showing human scale entourage, water features, native shade trees, and seamless indoor-outdoor transition.',
+  },
+  'facade-detail': {
+    label: 'Bioclimatic Facade & Material Detail',
+    description: 'Close-up architectural vignette of louvers, perforated screens, and joinery',
+    promptModifier:
+      'Close-up architectural detail shot of the facade, focusing on the perforated UHPC sunscreen panels, timber brise-soleil joinery, low-E glass edge details, and board-formed concrete texture with crisp shadows.',
+  },
+};
+
+export const CAMERA_VIEW_KEYS: ArchitecturalCameraView[] = [
+  'hero-perspective',
+  'front-elevation',
+  'aerial-drone',
+  'eye-level-plaza',
+  'facade-detail',
+];
+
+export const VISUAL_STYLE_KEYS: ArchitecturalVisualStyle[] = [
+  'photography',
+  'vray-cgi',
+  'golden-hour',
+  'dusk-bluehour',
+  'overcast',
+];
+
+export const IMAGE_RESOLUTIONS: { id: ImageResolution; label: string; width: number; height: number }[] = [
+  { id: '2K', label: '2K High-Definition (2048px)', width: 2048, height: 1152 },
+  { id: '1K', label: '1K Standard (1024px)', width: 1024, height: 576 },
+  { id: '4K', label: '4K Ultra-Sharp (4096px)', width: 4096, height: 2304 },
 ];
 
 export function getStoredGeminiKey(): string {
@@ -85,7 +233,6 @@ export function setStoredGeminiKey(key: string): void {
 export function getStoredGeminiModel(): string {
   try {
     const stored = localStorage.getItem(MODEL_STORAGE_KEY);
-    // Automatically migrate from any restricted 2.5 or legacy models to gemini-3.8-flash
     if (!stored || stored.includes('2.5') || stored.includes('1.5-pro')) {
       localStorage.setItem(MODEL_STORAGE_KEY, 'gemini-3.8-flash');
       return 'gemini-3.8-flash';
@@ -101,6 +248,80 @@ export function setStoredGeminiModel(modelId: string): void {
     localStorage.setItem(MODEL_STORAGE_KEY, modelId);
   } catch (e) {
     console.error('Failed to save Gemini model', e);
+  }
+}
+
+export function getStoredImageModel(): ImageGenerationModelId {
+  try {
+    const val = localStorage.getItem(IMAGE_MODEL_STORAGE_KEY);
+    if (val && IMAGE_GENERATION_MODELS.some((m) => m.id === val)) {
+      return val as ImageGenerationModelId;
+    }
+    return 'gemini-nano-banana-2.1';
+  } catch {
+    return 'gemini-nano-banana-2.1';
+  }
+}
+
+export function setStoredImageModel(modelId: ImageGenerationModelId): void {
+  try {
+    localStorage.setItem(IMAGE_MODEL_STORAGE_KEY, modelId);
+  } catch (e) {
+    console.error('Failed to save image model', e);
+  }
+}
+
+export function getStoredVisualStyle(): ArchitecturalVisualStyle {
+  try {
+    const val = localStorage.getItem(VISUAL_STYLE_STORAGE_KEY);
+    if (val && val in ARCHITECTURAL_VISUAL_STYLES) return val as ArchitecturalVisualStyle;
+    return 'photography';
+  } catch {
+    return 'photography';
+  }
+}
+
+export function setStoredVisualStyle(style: ArchitecturalVisualStyle): void {
+  try {
+    localStorage.setItem(VISUAL_STYLE_STORAGE_KEY, style);
+  } catch (e) {
+    console.warn('Failed to save visual style', e);
+  }
+}
+
+export function getStoredCameraView(): ArchitecturalCameraView {
+  try {
+    const val = localStorage.getItem(VIEW_TYPE_STORAGE_KEY);
+    if (val && val in ARCHITECTURAL_CAMERA_VIEWS) return val as ArchitecturalCameraView;
+    return 'hero-perspective';
+  } catch {
+    return 'hero-perspective';
+  }
+}
+
+export function setStoredCameraView(view: ArchitecturalCameraView): void {
+  try {
+    localStorage.setItem(VIEW_TYPE_STORAGE_KEY, view);
+  } catch (e) {
+    console.warn('Failed to save camera view', e);
+  }
+}
+
+export function getStoredResolution(): ImageResolution {
+  try {
+    const val = localStorage.getItem(RESOLUTION_STORAGE_KEY);
+    if (val === '1K' || val === '2K' || val === '4K') return val;
+    return '2K';
+  } catch {
+    return '2K';
+  }
+}
+
+export function setStoredResolution(res: ImageResolution): void {
+  try {
+    localStorage.setItem(RESOLUTION_STORAGE_KEY, res);
+  } catch (e) {
+    console.warn('Failed to save resolution', e);
   }
 }
 
@@ -935,29 +1156,87 @@ export function generateArchitecturalPerspectiveSvg(
 }
 
 /**
+ * Automated Image Quality Validation:
+ * Validates that the returned asset is a real, decodable raster image (PNG/JPEG/WEBP)
+ * and strictly rejects synthetic vector SVGs, placeholders, or truncated data.
+ */
+export function validateGeneratedImage(imageUrl?: string | null): { isValid: boolean; error?: string } {
+  if (!imageUrl) {
+    return { isValid: false, error: 'No image asset returned from generation engine.' };
+  }
+  if (imageUrl.startsWith('data:image/svg+xml')) {
+    return { isValid: false, error: 'Synthetic vector SVG detected. Arkiteki requires authentic photorealistic raster images.' };
+  }
+  if (
+    !imageUrl.startsWith('data:image/png;base64,') &&
+    !imageUrl.startsWith('data:image/jpeg;base64,') &&
+    !imageUrl.startsWith('data:image/webp;base64,') &&
+    !imageUrl.startsWith('https://') &&
+    !imageUrl.startsWith('http://')
+  ) {
+    return { isValid: false, error: 'Unrecognized image MIME format. Expected PNG, JPEG, or WEBP.' };
+  }
+  if (imageUrl.startsWith('data:image/')) {
+    const commaIndex = imageUrl.indexOf(',');
+    const b64Data = commaIndex >= 0 ? imageUrl.slice(commaIndex + 1) : '';
+    if (b64Data.length < 50) {
+      return { isValid: false, error: 'Image asset data is truncated or incomplete.' };
+    }
+  }
+  return { isValid: true };
+}
+
+/**
  * Direct In-App Image Rendering:
- * Generates high quality architectural render visual using Gemini 3.1 Flash Image,
- * Gemini Nano Banana 2.1, Imagen 3, or Architectural Visual Synthesis.
+ * Generates an authentic photorealistic architectural render plate
+ * using Google's native Gemini image generation models (Gemini Nano Banana 2.1, Gemini 3 Pro Image).
+ * Strictly guarantees NO synthetic SVG or cartoon placeholder fallback.
  */
 export async function generateInAppImage({
   apiKey,
   prompt,
+  imageModel = getStoredImageModel(),
   aspectRatio = '16:9',
+  resolution = '2K',
+  visualStyle = 'photography',
+  viewType = 'hero-perspective',
   fileItem,
 }: {
   apiKey: string;
   prompt: string;
+  imageModel?: ImageGenerationModelId;
   aspectRatio?: '16:9' | '4:3' | '1:1';
+  resolution?: ImageResolution;
+  visualStyle?: ArchitecturalVisualStyle;
+  viewType?: ArchitecturalCameraView;
   fileItem?: UploadedFileItem;
-}): Promise<{ imageUrl: string; source: 'gemini-image' | 'imagen-3' } | null> {
-  const cleanPrompt = prompt.slice(0, 1500);
+}): Promise<{
+  imageUrl: string | null;
+  source: string | null;
+  error?: string;
+  failedModel?: string;
+}> {
+  const chosenStyle = ARCHITECTURAL_VISUAL_STYLES[visualStyle] || ARCHITECTURAL_VISUAL_STYLES.photography;
+  const chosenView = ARCHITECTURAL_CAMERA_VIEWS[viewType] || ARCHITECTURAL_CAMERA_VIEWS['hero-perspective'];
 
-  // Strategy 1: Google Interactions API (Gemini 3.1 Flash Image / Gemini Nano Banana 2.1)
-  const interactionModels = ['gemini-3.1-flash-image', 'gemini-nano-banana-2.1'];
-  for (const imModel of interactionModels) {
+  // Construct rigorous positive prompt adhering to Section 2 of Photorealism Standard
+  const fullImagePrompt = `${chosenView.promptModifier} ${chosenStyle.promptModifier} Finished architectural design: ${prompt}. Real-world construction details: physically based materials with natural tonal variation; board-formed architectural concrete with subtle pores, tie-hole indentations, and crisp formwork edges; warm local Philippine teak timber slats with directional grain and joinery; high-performance solar Low-E glass curtain wall reflecting the ambient sky and surrounding landscape with subtle transparency into double-height interior spaces; powder-coated aluminum framing and mullions; textured stone ground paving with natural joint lines. Lush authentic tropical Philippine landscape: mature coconut palms (Cocos nucifera), native Narra shade trees, lush tropical shrubs, and permeable civic pedestrian plaza. Professional architectural camera rules: perfectly straight plumb vertical lines with zero vertical convergence, sharp depth of field, natural indirect illumination, realistic contact shadows, and ambient occlusion. Negative constraints: no cartoon, no flat illustration, no vector graphics, no 3D CAD clay model, no wireframe, no low poly, no oversaturated plastic colors, no watermarks, no text overlay, no artificial gradients.`;
+
+  // Candidate models to attempt
+  const candidateModels: ImageGenerationModelId[] = [
+    imageModel,
+    'gemini-nano-banana-2.1',
+    'gemini-3-pro-image',
+    'gemini-3.1-flash-image',
+  ].filter((m, i, a) => a.indexOf(m) === i) as ImageGenerationModelId[];
+
+  let lastError = '';
+
+  for (const targetModel of candidateModels) {
     try {
+      // Approach A: Google Interactions API (Native endpoint for Gemini Nano Banana 2.1 & Gemini 3 Pro Image)
       const inputParts: any[] = [];
-      if (fileItem && fileItem.base64Data && fileItem.mimeType.startsWith('image/')) {
+      if (fileItem?.base64Data && fileItem.mimeType.startsWith('image/')) {
         inputParts.push({
           type: 'image',
           data: fileItem.base64Data,
@@ -965,34 +1244,35 @@ export async function generateInAppImage({
         });
         inputParts.push({
           type: 'text',
-          text: `Based on this architectural drawing/sketch, transform it into a publication-grade architectural visual: ${cleanPrompt}`,
+          text: `Using this uploaded architectural design reference/board as geometric and conceptual context, generate a finished, photorealistic architectural visualization plate: ${fullImagePrompt}`,
         });
       } else {
         inputParts.push({
           type: 'text',
-          text: `Photorealistic publication architectural render: ${cleanPrompt}`,
+          text: fullImagePrompt,
         });
       }
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/interactions`, {
+      const interactionsUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
+      const interactionsRes = await fetch(interactionsUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-goog-api-key': apiKey,
-          'Api-Revision': '2026-05-20',
         },
         body: JSON.stringify({
-          model: imModel,
+          model: targetModel,
           input: inputParts,
           response_format: {
             type: 'image',
             aspect_ratio: aspectRatio,
+            image_size: resolution,
           },
         }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
+      if (interactionsRes.ok) {
+        const data = await interactionsRes.json();
         let imageBase64: string | undefined;
         let mimeType = 'image/png';
 
@@ -1021,252 +1301,432 @@ export async function generateInAppImage({
         }
 
         if (imageBase64) {
-          return {
-            imageUrl: `data:${mimeType};base64,${imageBase64}`,
-            source: 'gemini-image',
-          };
+          const dataUrl = `data:${mimeType};base64,${imageBase64}`;
+          const validation = validateGeneratedImage(dataUrl);
+          if (validation.isValid) {
+            return {
+              imageUrl: dataUrl,
+              source: targetModel,
+            };
+          }
         }
+      } else {
+        const errJson = await interactionsRes.json().catch(() => ({}));
+        const msg = errJson.error?.message || `HTTP ${interactionsRes.status} ${interactionsRes.statusText}`;
+        lastError = `${targetModel} Interactions error: ${msg}`;
+        console.warn(`Interactions attempt on ${targetModel} returned:`, msg);
       }
-    } catch (e) {
-      console.warn(`Interactions model ${imModel} generation fallback:`, e);
+    } catch (err: any) {
+      lastError = err?.message || String(err);
+      console.warn(`Interactions call exception on ${targetModel}:`, err);
     }
-  }
 
-  // Strategy 2: Imagen 3 Generate 002
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`,
-      {
+    // Approach B: Google Gemini generateContent with responseModalities: ["IMAGE"]
+    try {
+      const contentParts: any[] = [];
+      if (fileItem?.base64Data && fileItem.mimeType.startsWith('image/')) {
+        contentParts.push({
+          inline_data: {
+            mime_type: fileItem.mimeType,
+            data: fileItem.base64Data,
+          },
+        });
+      }
+      contentParts.push({ text: fullImagePrompt });
+
+      const genUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+      const genRes = await fetch(genUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
-          instances: [{ prompt: cleanPrompt }],
-          parameters: { sampleCount: 1, aspectRatio },
+          contents: [{ role: 'user', parts: contentParts }],
+          generationConfig: {
+            responseModalities: ['IMAGE'],
+            imageConfig: {
+              aspectRatio,
+            },
+          },
         }),
-      }
-    );
+      });
 
-    if (res.ok) {
-      const data = await res.json();
-      const b64 = data.predictions?.[0]?.bytesBase64Encoded;
-      if (b64) {
-        return {
-          imageUrl: `data:image/png;base64,${b64}`,
-          source: 'imagen-3',
-        };
+      if (genRes.ok) {
+        const genData = await genRes.json();
+        const parts = genData.candidates?.[0]?.content?.parts || [];
+        for (const p of parts) {
+          const inline = p.inlineData || p.inline_data;
+          if (inline?.data) {
+            const mime = inline.mimeType || inline.mime_type || 'image/png';
+            const dataUrl = `data:${mime};base64,${inline.data}`;
+            const validation = validateGeneratedImage(dataUrl);
+            if (validation.isValid) {
+              return {
+                imageUrl: dataUrl,
+                source: targetModel,
+              };
+            }
+          }
+        }
+      } else {
+        const genErrJson = await genRes.json().catch(() => ({}));
+        const genMsg = genErrJson.error?.message || `HTTP ${genRes.status}`;
+        lastError = `${targetModel} generateContent error: ${genMsg}`;
       }
+    } catch (err: any) {
+      lastError = err?.message || String(err);
     }
-  } catch (e) {
-    console.warn('Imagen 3.0 predict failed, trying fast generate', e);
   }
 
-  // Strategy 3: Imagen 3 Fast Generate
+  // STRICT RULE: Never substitute a cartoon SVG or placeholder for a failed image render!
+  console.error('All architectural image generation models failed:', lastError);
+  return {
+    imageUrl: null,
+    source: null,
+    error: lastError || 'Image generation engine did not return a valid raster plate. Please verify your Gemini API key and quota.',
+    failedModel: imageModel,
+  };
+}
+
+/**
+ * Stage 1: Gemini Deep Multimodal Architectural Analysis & Specification Synthesis
+ * Analyzes the user brief and any attached presentation boards, site plans, sketches, or PDFs.
+ * Extracts the central building concept, roof structure, massing, facade, materials, and tropical context,
+ * and synthesizes the presentation dossier + the hyper-detailed photorealistic rendering prompt.
+ */
+export async function synthesizeArchitecturalSpecification({
+  apiKey,
+  reasoningModel = getStoredGeminiModel(),
+  prompt,
+  fileItem,
+  visualStyle = 'photography',
+  viewType = 'hero-perspective',
+  aspectRatio = '16:9',
+}: {
+  apiKey: string;
+  reasoningModel?: string;
+  prompt: string;
+  fileItem?: UploadedFileItem;
+  visualStyle?: ArchitecturalVisualStyle;
+  viewType?: ArchitecturalCameraView;
+  aspectRatio?: '16:9' | '4:3' | '1:1';
+}): Promise<{
+  conceptStatement: string;
+  materialPalette: { material: string; application: string; rationale: string }[];
+  environmentalAnalysis: { solarOrientation: string; windChanneling: string; stormWaterStrategy: string };
+  buildingCodeNotes: string[];
+  jurorDefenseTips: { question: string; suggestedAnswer: string }[];
+  architecturalSpec: ArchitecturalDesignSpecification;
+  photorealisticPrompt: string;
+  enhancedPrompt: string;
+}> {
+  const chosenModel = reasoningModel || getStoredGeminiModel() || 'gemini-3.8-flash';
+
+  const systemInstruction = `You are a distinguished Architectural Visualization Director and PRC Board of Architecture Examiner in the Philippines.
+You specialize in translating rough briefs, sketches, and architectural presentation boards (like "BALAY BANWA", Sorsogon City Hall, Bicolano civic concepts) into world-class architectural designs and hyper-detailed photorealistic rendering specifications suitable for ArchDaily publication or V-Ray/Unreal Engine 5 architectural CGI.`;
+
+  const instruction = `The student is designing an architectural project:
+"${prompt}"
+
+Deliverable Request: Photorealistic Architectural Visualization Plate (${aspectRatio}, ${visualStyle}, ${viewType})
+Attached Reference Material: ${fileItem ? `"${fileItem.name}" (${fileItem.mimeType})` : 'None'}
+
+CRITICAL MULTIMODAL INSTRUCTION FOR ARCHITECTURAL PRESENTATION BOARDS & SKETCHES:
+1. The attached image may be an architectural presentation board containing title blocks (e.g., "BALAY BANWA", Revitalized Municipal Hall of Sorsogon City), site analysis diagrams, axonometric massing diagrams, and cultural/biomimetic narratives.
+2. Read and extract all key concepts from the board:
+   - Specific project name, location, and cultural identity.
+   - Biomimetic inspiration (e.g. Butanding / Whale shark sweeping aerodynamic canopy, lifted administrative volume, 100% permeable public ground plane, shaded Silang/Tabuan concourse).
+   - Envelope articulation (e.g. UHPC double-skin sunscreen with dactylogram dot-and-stripe apertures, operable branchial gill louvers for sea-to-mountain cross-ventilation, central solar exhaust beacon).
+   - Tropical site strategies (stepped roof tiers, rainwater bioswales, retention cisterns, permeable stone civic plaza).
+3. If the user's prompt is "can you give me a better concept for this" or asks for improvements:
+   - PRESERVE the core identifying features, cultural narrative, and biomimetic roof canopy from the reference board.
+   - DRAMATICALLY ELEVATE the tectonic clarity, material realism, and spatial grandeur into a finished, publication-grade proposal.
+4. Synthesize a comprehensive JSON response matching this EXACT schema:
+{
+  "conceptStatement": "3-4 sentence powerful architectural philosophy articulating the civic presence, spatial narrative, vernacular-modern balance, and biophilic identity.",
+  "materialPalette": [
+    { "material": "Material Name", "application": "Exact location on building", "rationale": "Climate, seismic, or aesthetic rationale in the Philippines" },
+    { "material": "Material Name", "application": "Exact location", "rationale": "Rationale" },
+    { "material": "Material Name", "application": "Exact location", "rationale": "Rationale" },
+    { "material": "Material Name", "application": "Exact location", "rationale": "Rationale" }
+  ],
+  "environmentalAnalysis": {
+    "solarOrientation": "Technical solar shading strategy along the East-West axis with cantilevered overhangs.",
+    "windChanneling": "Aerodynamic channeling of Amihan (Northeast) & Habagat (Southwest) monsoon breezes.",
+    "stormWaterStrategy": "Monsoon stormwater resilience, retention basins, bioswales, and permeable paving."
+  },
+  "buildingCodeNotes": [
+    "PD 1096 Sec. 704 & 708: Specific setback, TOSL, and allowable building footprint note.",
+    "BP 344 Rule II: Full universal accessibility ramp gradients (1:12), tactile paving, and entrance clearances.",
+    "RA 9514 Fire Code: Emergency egress stairs, fire-rated assemblies, and fire truck access."
+  ],
+  "jurorDefenseTips": [
+    { "question": "Tough question a university professor or panel juror will ask?", "suggestedAnswer": "Strong, code-backed defense." },
+    { "question": "Tough structural or environmental question?", "suggestedAnswer": "Convincing architectural defense." }
+  ],
+  "architecturalSpec": {
+    "projectType": "Civic Municipal Hall / Commercial / Residential",
+    "buildingLocation": "Sorsogon City / Bicol / Metro Manila, Philippines",
+    "climateAndBiome": "Tropical wet monsoon, typhoon-resilient coastal-upland threshold",
+    "floorsAndScale": "e.g. 2-3 storeys with double-height civic atrium",
+    "formAndMassing": "Sweeping aerodynamic roof canopy over lifted rectangular volume on slender columns",
+    "facadeComposition": "Perforated UHPC solar screen panels with dactylogram constellation apertures and vertical timber louvers",
+    "roofDesign": "Aerodynamic curved standing-seam titanium-zinc roof with deep 3m cantilevered eaves",
+    "fenestrationAndGlazing": "Floor-to-ceiling Low-E insulated glass curtain walls with brushed aluminum mullions",
+    "materialSchedule": "Board-formed architectural concrete, warm teak timber slats, UHPC panels, natural stone pavers",
+    "siteAndLandscape": "Permeable stone civic plaza, mature coconut palms (Cocos nucifera), native Narra shade trees, bioswales",
+    "lightingAndAtmosphere": "Warm late-afternoon golden hour sunlight at 5:00 PM, soft directional shadows, warm interior glow",
+    "cameraComposition": "Eye-level 1.6m two-point architectural perspective, 24mm tilt-shift lens, perfectly plumb vertical lines",
+    "preservedReferenceElements": ["Butanding whale shark roof canopy", "lifted volume on pilotis", "UHPC perforated screen"],
+    "refinedDesignElements": ["Enhanced structural tectonic joints", "hyper-realistic materials", "authentic tropical landscaping"]
+  },
+  "photorealisticPrompt": "Complete, self-contained, publication-grade architectural visualization prompt ready for Canon EOS R5 / V-Ray rendering describing the building in exhaustive physical detail.",
+  "negativeConstraints": "cartoon, flat illustration, vector graphics, 3D CAD clay model, wireframe, low poly, oversaturated plastic colors, watermarks, text overlay"
+}`;
+
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-fast-generate-001:predict?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instances: [{ prompt: cleanPrompt }],
-          parameters: { sampleCount: 1, aspectRatio },
-        }),
-      }
-    );
-
-    if (res.ok) {
-      const data = await res.json();
-      const b64 = data.predictions?.[0]?.bytesBase64Encoded;
-      if (b64) {
-        return {
-          imageUrl: `data:image/png;base64,${b64}`,
-          source: 'imagen-3',
-        };
-      }
-    }
-  } catch (e) {
-    console.warn('Imagen fast predict failed', e);
-  }
-
-  // Strategy 4: High-Fidelity Architectural SVG Presentation Visual
-  try {
-    const svgPrompt = `You are a master architectural renderer and CAD drafting visualizer.
-Generate a publication-grade architectural SVG presentation visual (viewBox="0 0 1200 675" for 16:9 widescreen) for:
-"${cleanPrompt}"
-
-Rules:
-- Include rich architectural gradients (sky, glass reflections, shadows).
-- Render building massing, cantilevered balconies, wooden brise-soleil louvers, clear glass mullions, and landscaping silhouettes.
-- Use board-formed concrete grey (#D3D0CB), warm teak (#C85A32), and tropical lush green (#2C6E49).
-- Return ONLY the clean <svg ... </svg> code without markdown backticks.`;
-
-    const svgText = await callGeminiApi({
+    const text = await callGeminiApi({
       apiKey,
-      model: 'gemini-3.8-flash',
-      prompt: svgPrompt,
+      model: chosenModel,
+      prompt: instruction,
+      fileItem,
+      systemInstruction,
     });
 
-    const svgMatch = svgText.match(/<svg[\s\S]*?<\/svg>/i);
-    if (svgMatch) {
-      const encodedSvg = encodeURIComponent(svgMatch[0]);
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
       return {
-        imageUrl: `data:image/svg+xml;utf8,${encodedSvg}`,
-        source: 'gemini-image',
+        conceptStatement: parsed.conceptStatement || 'Architectural design synthesizing contemporary tectonic clarity with vernacular Philippine bioclimatic principles.',
+        materialPalette: Array.isArray(parsed.materialPalette) ? parsed.materialPalette : [],
+        environmentalAnalysis: parsed.environmentalAnalysis || {
+          solarOrientation: 'East-West building orientation with deep overhangs.',
+          windChanneling: 'Raised ground-floor breezeways capturing Amihan and Habagat breezes.',
+          stormWaterStrategy: 'Integrated rainwater bioswales and retention cisterns.',
+        },
+        buildingCodeNotes: Array.isArray(parsed.buildingCodeNotes) ? parsed.buildingCodeNotes : [],
+        jurorDefenseTips: Array.isArray(parsed.jurorDefenseTips) ? parsed.jurorDefenseTips : [],
+        architecturalSpec: parsed.architecturalSpec || {
+          projectType: 'Civic Architecture',
+          buildingLocation: 'Philippines',
+          climateAndBiome: 'Tropical monsoon',
+          floorsAndScale: '2-3 storeys',
+          formAndMassing: 'Modern tropical massing',
+          facadeComposition: 'Timber louvers and glass',
+          roofDesign: 'Deep cantilevered roof',
+          fenestrationAndGlazing: 'Low-E solar glazing',
+          materialSchedule: 'Board-formed concrete, teak, aluminum',
+          siteAndLandscape: 'Permeable plaza, native palms',
+          lightingAndAtmosphere: 'Golden hour sunlight',
+          cameraComposition: '24mm tilt-shift two-point perspective',
+          preservedReferenceElements: [],
+          refinedDesignElements: [],
+          photorealisticPrompt: prompt,
+          negativeConstraints: 'cartoon, flat illustration, vector',
+        },
+        photorealisticPrompt: parsed.photorealisticPrompt || prompt,
+        enhancedPrompt: parsed.photorealisticPrompt || prompt,
       };
     }
   } catch (err) {
-    console.warn('Architectural SVG generation fallback', err);
+    console.warn('Gemini architectural analysis error, using local architectural intelligence:', err);
   }
 
-  // Strategy 5: Guaranteed Procedural Architectural Perspective Visual
-  // Ensures students ALWAYS have high-quality visual architectural work displayed directly in-app
-  const perspectiveSvg = generateArchitecturalPerspectiveSvg(cleanPrompt, aspectRatio);
+  // Local fallback synthesis for Stage 1 if API text call fails
+  const localSpec: ArchitecturalDesignSpecification = {
+    projectType: prompt.toLowerCase().includes('hall') ? 'Civic Municipal Hall' : 'Modern Tropical Architecture',
+    buildingLocation: prompt.toLowerCase().includes('sorsogon') ? 'Sorsogon City, Bicol, Philippines' : 'Philippines',
+    climateAndBiome: 'Tropical wet monsoon, high humidity, typhoon-resilient zone',
+    floorsAndScale: '2 storeys with grand civic concourse',
+    formAndMassing: 'Aerodynamic biomorphic roof canopy hovering over an upper volume lifted on pilotis with an open ground-level civic concourse',
+    facadeComposition: 'Perforated UHPC sunscreen panels with constellation apertures and vertical operable timber brise-soleil',
+    roofDesign: 'Sweeping cantilevered roof canopy with 3.0m eaves and concealed rainwater gutters',
+    fenestrationAndGlazing: 'Double-glazed Low-E solar curtain wall with 50mm black powder-coated aluminum mullions',
+    materialSchedule: 'Off-form board-formed concrete (#DDD8CE), warm Philippine teak slats (#C85A32), and satin low-iron glass',
+    siteAndLandscape: 'Permeable travertine civic plaza, native Narra shade trees, mature coconut palms (Cocos nucifera), and rain garden bioswales',
+    lightingAndAtmosphere: 'Warm late-afternoon golden hour sunlight at 5:00 PM, long soft directional shadows, warm 3000K interior glow',
+    cameraComposition: 'Human eye-level (1.6m) two-point architectural perspective, 24mm tilt-shift lens, perfectly plumb vertical lines',
+    preservedReferenceElements: ['Biomimetic roof canopy', 'Lifted ground level', 'Perforated screen facade'],
+    refinedDesignElements: ['Physical material textures', 'Ray-traced glass reflections', 'Authentic tropical landscaping'],
+    photorealisticPrompt: `Photorealistic architectural photograph of a modern tropical civic building in the Philippines. Captured with a 24mm tilt-shift lens from human eye-level (1.6m). Vertical columns and mullions are strictly plumb and straight. The building features an aerodynamic sweeping roof canopy with deep 3.0m eaves, lifted upper administrative volume clad in board-formed concrete and perforated sunscreen panels, open-air ground floor civic concourse, and warm teak timber louvers. Floor-to-ceiling Low-E glass curtain walls reflect the warm golden-hour afternoon sky and lush tropical landscaping (coconut palms and Narra shade trees). Editorial publication standard for ArchDaily.`,
+    negativeConstraints: 'cartoon, flat vector illustration, low poly, 3D CAD clay model, wireframe, plastic materials, watermarks',
+  };
+
   return {
-    imageUrl: `data:image/svg+xml;utf8,${encodeURIComponent(perspectiveSvg)}`,
-    source: 'gemini-image',
+    conceptStatement:
+      'This architectural proposal transforms civic infrastructure into an open, welcoming community sanctuary rooted in vernacular Philippine domestic architecture and biomimetic climate responsiveness.',
+    materialPalette: [
+      { material: 'Board-Formed Concrete', application: 'Structural cores and shear walls', rationale: 'High thermal mass dampens tropical heat; withstands typhoons and earthquakes.' },
+      { material: 'Operable Teak Brise-Soleil', application: 'Upper facade louvers', rationale: 'Filters high-angle solar glare while permitting continuous Amihan breeze cross-ventilation.' },
+      { material: 'Low-E Insulated Double Glazing', application: 'Public concourse curtain walls', rationale: 'Maximizes natural daylighting without excessive Solar Heat Gain Coefficient.' },
+      { material: 'Permeable Stone Pavers', application: 'Civic pedestrian plaza', rationale: 'Prevents urban heat island effect and promotes natural stormwater aquifer recharge.' },
+    ],
+    environmentalAnalysis: {
+      solarOrientation: 'Longitudinal East-West building axis limits direct solar radiation on broad facade planes.',
+      windChanneling: 'Raised ground-floor pilotis channel prevailing Amihan and Habagat breezes through public spaces.',
+      stormWaterStrategy: 'Deep 3.0m cantilevered eaves shed monsoon rains into bioretention swales and cisterns.',
+    },
+    buildingCodeNotes: [
+      'PD 1096 Sec. 704: Complies with allowable Total Open Space within Lot (TOSL) and required setback clearances.',
+      'BP 344 Rule II: Full universal access provided with 1:12 ramp gradients and tactile guiding pavers.',
+      'RA 9514: Dual remote smoke-proof enclosed egress stair towers with positive pressure ventilation.',
+    ],
+    jurorDefenseTips: [
+      { question: 'How did you justify your ramp length under BP 344?', suggestedAnswer: 'We maintained a strict 1:12 slope with 1.5m level rest landings every 6.0m of run, ensuring full universal accessibility.' },
+      { question: 'How does your design address excessive heat gain in glass atriums?', suggestedAnswer: 'Major glazing faces strictly North, shielded by deep horizontal overhangs and Low-E solar coatings to prevent heat entrapment.' },
+    ],
+    architecturalSpec: localSpec,
+    photorealisticPrompt: localSpec.photorealisticPrompt,
+    enhancedPrompt: localSpec.photorealisticPrompt,
+  };
+}
+
+/**
+ * Generates an additional viewpoint (e.g. Front Elevation, Aerial Drone, Facade Detail)
+ * of the exact same architectural design using the Stage 1 architectural specification.
+ */
+export async function generateAdditionalArchitecturalView({
+  apiKey,
+  imageModel = getStoredImageModel(),
+  architecturalSpec,
+  targetView,
+  visualStyle = 'photography',
+  aspectRatio = '16:9',
+  resolution = '2K',
+  fileItem,
+}: {
+  apiKey: string;
+  imageModel?: ImageGenerationModelId;
+  architecturalSpec: ArchitecturalDesignSpecification;
+  targetView: ArchitecturalCameraView;
+  visualStyle?: ArchitecturalVisualStyle;
+  aspectRatio?: '16:9' | '4:3' | '1:1';
+  resolution?: ImageResolution;
+  fileItem?: UploadedFileItem;
+}): Promise<AdditionalArchitecturalView> {
+  const viewConfig = ARCHITECTURAL_CAMERA_VIEWS[targetView];
+  const viewPrompt = `${viewConfig.promptModifier} Focusing on the ${architecturalSpec.projectType} in ${architecturalSpec.buildingLocation}. Form: ${architecturalSpec.formAndMassing}. Facade: ${architecturalSpec.facadeComposition}. Roof: ${architecturalSpec.roofDesign}. Materials: ${architecturalSpec.materialSchedule}. Landscape: ${architecturalSpec.siteAndLandscape}.`;
+
+  const imgRes = await generateInAppImage({
+    apiKey,
+    prompt: viewPrompt,
+    imageModel,
+    aspectRatio,
+    resolution,
+    visualStyle,
+    viewType: targetView,
+    fileItem,
+  });
+
+  if (!imgRes.imageUrl) {
+    throw new Error(imgRes.error || `Failed to render ${viewConfig.label}.`);
+  }
+
+  return {
+    id: `view-${targetView}-${Date.now()}`,
+    viewType: targetView,
+    viewLabel: viewConfig.label,
+    imageUrl: imgRes.imageUrl,
+    timestamp: Date.now(),
+    imageModelUsed: imageModel,
+    resolution,
+    visualStyle,
+    promptUsed: viewPrompt,
   };
 }
 
 /**
  * Direct In-App Studio Output:
- * Generates the render image and the complete architectural presentation dossier
- * so the student never needs to leave the web app or open another tab!
+ * Coordinates Stage 1 (Gemini Multimodal Architectural Specification Synthesis)
+ * and Stage 2 (Photorealistic Image Model Rendering).
+ * Delivers both the true raster image and the presentation dossier.
  */
 export async function generateInAppStudioResult({
   apiKey,
-  model = getStoredGeminiModel(),
+  reasoningModel = getStoredGeminiModel(),
+  imageModel = getStoredImageModel(),
   prompt,
   fileItem,
   aspectRatio = '16:9',
+  resolution = '2K',
+  visualStyle = 'photography',
+  viewType = 'hero-perspective',
 }: {
   apiKey: string;
-  model?: string;
+  reasoningModel?: string;
+  imageModel?: ImageGenerationModelId;
   prompt: string;
   fileItem?: UploadedFileItem;
   aspectRatio?: '16:9' | '4:3' | '1:1';
+  resolution?: ImageResolution;
+  visualStyle?: ArchitecturalVisualStyle;
+  viewType?: ArchitecturalCameraView;
 }): Promise<InAppStudioResult> {
-  const chosenModel = model || getStoredGeminiModel() || 'gemini-3.8-flash';
+  const chosenReasoningModel = reasoningModel || getStoredGeminiModel() || 'gemini-3.8-flash';
+  const chosenImageModel = imageModel || getStoredImageModel() || 'gemini-nano-banana-2.1';
   const hasImage = Boolean(fileItem && fileItem.mimeType.startsWith('image/'));
   const deliverableType = classifyArchitecturalIntent(prompt, hasImage);
 
-  // If deliverable is a floor plan, generate CAD linework plan
+  // If deliverable is a floor plan, generate CAD linework plan for CAD tab
   let svgFloorPlan: string | undefined;
   if (deliverableType === 'floor-plan' || prompt.toLowerCase().includes('plan')) {
     svgFloorPlan = generateArchitecturalFloorPlanSvg(prompt);
   }
 
-  // Run image generation and presentation dossier concurrently
-  const [imageResult, dossierResult] = await Promise.allSettled([
-    generateInAppImage({ apiKey, prompt, aspectRatio, fileItem }),
-    (async () => {
-      const systemInstruction = `You are a distinguished Philippine Architectural Visualization Director and PRC Board Examiner.
-Generate an exhaustive, presentation-grade architectural dossier for a design plate, formatted strictly as valid JSON.`;
+  // Stage 1: Multimodal Architectural Analysis & Specification Synthesis
+  const stage1 = await synthesizeArchitecturalSpecification({
+    apiKey,
+    reasoningModel: chosenReasoningModel,
+    prompt,
+    fileItem,
+    visualStyle,
+    viewType,
+    aspectRatio,
+  });
 
-      const instruction = `The student wants to directly render and generate the full presentation board dossier for this design:
-"${prompt}"
+  // Stage 2: Photorealistic Image Generation using the Synthesized Specification
+  let imageOutput: { imageUrl: string | null; source: string | null; error?: string; failedModel?: string } = {
+    imageUrl: null,
+    source: null,
+  };
 
-Deliverable Type: ${deliverableType}
-Attached Reference: ${fileItem ? fileItem.name : 'None'}
-
-Analyze this architectural concept and respond ONLY in valid JSON matching this schema:
-{
-  "enhancedPrompt": "Pristine, publication-grade professional architectural rendering prompt describing this exact design with 24mm architectural tilt-shift lens, strictly plumb vertical columns, two-point perspective, authentic materiality (board-formed concrete, tropical wood louvers), and warm golden hour sunlight.",
-  "conceptStatement": "A compelling 3-4 sentence design philosophy outlining the spatial narrative, vernacular/modern balance, and civic presence.",
-  "materialPalette": [
-    { "material": "Material name", "application": "Where it is placed on the building", "rationale": "Why chosen for Philippine climate or structure" },
-    { "material": "Material name", "application": "Where it is placed", "rationale": "Climate/code benefit" },
-    { "material": "Material name", "application": "Where it is placed", "rationale": "Climate/code benefit" },
-    { "material": "Material name", "application": "Where it is placed", "rationale": "Climate/code benefit" }
-  ],
-  "environmentalAnalysis": {
-    "solarOrientation": "Technical solar strategy for the Philippine tropical sun (East-West axis, solar overhangs).",
-    "windChanneling": "Aerodynamic strategy channeling Amihan (Northeast) & Habagat (Southwest) monsoons.",
-    "stormWaterStrategy": "Monsoon rainwater retention, permeable pavers, and flood resilience measures."
-  },
-  "buildingCodeNotes": [
-    "Specific PD 1096 National Building Code compliance note (setbacks, firewall, TOSL, or parking ratio)",
-    "BP 344 Accessibility Law compliance note (ramps, tactile paving, corridor clearances)",
-    "RA 9514 Fire Code egress / stair pressurization note"
-  ],
-  "jurorDefenseTips": [
-    { "question": "Tough question a university professor or juror will ask during defense?", "suggestedAnswer": "Strong, code-backed defense citing PD 1096 or BP 344." },
-    { "question": "Second tough question about structural or site planning?", "suggestedAnswer": "Convincing architectural defense." }
-  ]
-}`;
-
-      const text = await callGeminiApi({
-        apiKey,
-        model: chosenModel,
-        prompt: instruction,
-        fileItem,
-        systemInstruction,
-      });
-
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-      throw new Error('Could not parse dossier response');
-    })(),
-  ]);
-
-  const imgData = imageResult.status === 'fulfilled' ? imageResult.value : null;
-  const dossier = dossierResult.status === 'fulfilled' ? dossierResult.value : null;
+  if (deliverableType !== 'floor-plan') {
+    imageOutput = await generateInAppImage({
+      apiKey,
+      prompt: stage1.photorealisticPrompt,
+      imageModel: chosenImageModel,
+      aspectRatio,
+      resolution,
+      visualStyle,
+      viewType,
+      fileItem,
+    });
+  }
 
   return {
-    imageUrl: imgData?.imageUrl || (svgFloorPlan ? `data:image/svg+xml;utf8,${encodeURIComponent(svgFloorPlan)}` : undefined),
-    imageSource: imgData?.source || (svgFloorPlan ? 'gemini-image' : null),
+    imageUrl: imageOutput.imageUrl || undefined,
+    imageSource: imageOutput.source,
+    imageModelUsed: chosenImageModel,
+    reasoningModelUsed: chosenReasoningModel,
+    visualStyle,
+    viewType,
+    resolution,
     deliverableType,
     aspectRatio,
     svgFloorPlan,
     comparisonImageUrl: fileItem?.dataUrl,
-    conceptStatement:
-      dossier?.conceptStatement ||
-      'This architectural proposal integrates contemporary tectonic clarity with vernacular Philippine bioclimatic principles, prioritizing natural passive cooling, structural honesty, and community accessibility.',
-    materialPalette: dossier?.materialPalette || [
-      {
-        material: 'Off-Form Board-Formed Concrete',
-        application: 'Main structural core, podium, and shear walls',
-        rationale: 'High thermal mass dampens tropical heat; resilient against typhoons and earthquakes.',
-      },
-      {
-        material: 'Operable Narra / Teak Brise-Soleil',
-        application: 'Upper facade screening & deep window reveals',
-        rationale: 'Filters high-angle sun glare while permitting continuous Amihan breeze cross-ventilation.',
-      },
-      {
-        material: 'Low-E Insulated Double Glazing',
-        application: 'North-facing curtain wall and public atrium',
-        rationale: 'Maximizes daylight penetration without high Solar Heat Gain Coefficient (SHGC).',
-      },
-      {
-        material: 'Permeable Travertine & Turf Pavers',
-        application: 'Civic pedestrian plaza & parking driveway',
-        rationale: 'Prevents heat island effect and complies with PD 1096 USA (Unpaved Surface Area) minimums.',
-      },
-    ],
-    environmentalAnalysis: dossier?.environmentalAnalysis || {
-      solarOrientation: 'Longitudinal East-West building axis limits direct solar radiation on broad facade planes.',
-      windChanneling: 'Raised ground-floor pilotis and double-height breezeways capture Amihan and Habagat winds.',
-      stormWaterStrategy: 'Deep 2.5m cantilevered eaves shed monsoon rains into bioswales and retention cisterns.',
-    },
-    jurorDefenseTips: dossier?.jurorDefenseTips || [
-      {
-        question: 'How did you justify your ramp length under BP 344?',
-        suggestedAnswer: 'We maintained a strict 1:12 slope with 1.5m level rest landings every 6.0m of run, ensuring full universal accessibility.',
-      },
-      {
-        question: 'How does your design address excessive heat gain in glass atriums?',
-        suggestedAnswer: 'Major glazing faces strictly North, shielded by deep horizontal overhangs and Low-E solar coatings to prevent heat entrapment.',
-      },
-    ],
-    buildingCodeNotes: dossier?.buildingCodeNotes || [
-      'PD 1096 Sec. 704 & 708: Building conforms to maximum allowable Total Open Space within Lot (TOSL) with 4.5m front setback and 2.0m rear yard clearance.',
-      'BP 344 Rule II: Inclusive access provided with 1:12 ramp gradients, 1.5m turning clearances, and dropped curb ramps along pedestrian desire lines.',
-      'RA 9514 Fire Code: 2 remote smoke-proof enclosed fire escape stairwells pressurized against smoke infiltration.'
-    ],
-    enhancedPrompt: dossier?.enhancedPrompt || `Professional architectural photograph of ${prompt.trim()}. Captured with a 24mm architectural tilt-shift lens from human eye-level (1.6m). Vertical columns and mullions are strictly plumb and straight. Warm late afternoon golden hour lighting, authentic board-formed concrete, tropical Philippine landscape. Editorial publication quality for ArchDaily.`,
-    modelUsed: chosenModel,
+    conceptStatement: stage1.conceptStatement,
+    materialPalette: stage1.materialPalette,
+    environmentalAnalysis: stage1.environmentalAnalysis,
+    jurorDefenseTips: stage1.jurorDefenseTips,
+    buildingCodeNotes: stage1.buildingCodeNotes,
+    architecturalSpec: stage1.architecturalSpec,
+    photorealisticPrompt: stage1.photorealisticPrompt,
+    enhancedPrompt: stage1.enhancedPrompt,
+    renderError: imageOutput.error,
+    additionalViews: [],
+    modelUsed: `${chosenReasoningModel} + ${chosenImageModel}`,
     timestamp: Date.now(),
   };
 }

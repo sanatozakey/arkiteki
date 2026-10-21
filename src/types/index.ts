@@ -78,7 +78,56 @@ export interface SavedPromptItem {
   tags: string[];
 }
 
-export type GeminiModelId = 'gemini-3.8-flash' | 'gemini-2.0-flash' | 'gemini-3.5-flash-lite' | 'gemini-1.5-pro' | 'gemini-1.5-flash' | 'gemini-2.5-flash' | 'gemini-nano-banana-2.1';
+export type GeminiModelId = 'gemini-3.8-flash' | 'gemini-4-argon' | 'gemini-2.0-flash' | 'gemini-3.5-flash-lite' | 'gemini-1.5-pro' | 'gemini-1.5-flash' | 'gemini-2.5-flash';
+
+export type ImageGenerationModelId = 'gemini-nano-banana-2.1' | 'gemini-3-pro-image' | 'gemini-3.1-flash-image' | 'gemini-3.1-flash-lite-image';
+
+export type ArchitecturalVisualStyle =
+  | 'photography'
+  | 'vray-cgi'
+  | 'golden-hour'
+  | 'dusk-bluehour'
+  | 'overcast';
+
+export type ArchitecturalCameraView =
+  | 'hero-perspective'
+  | 'front-elevation'
+  | 'aerial-drone'
+  | 'eye-level-plaza'
+  | 'facade-detail';
+
+export type ImageResolution = '1K' | '2K' | '4K';
+
+export interface ArchitecturalDesignSpecification {
+  projectType: string;
+  buildingLocation: string;
+  climateAndBiome: string;
+  floorsAndScale: string;
+  formAndMassing: string;
+  facadeComposition: string;
+  roofDesign: string;
+  fenestrationAndGlazing: string;
+  materialSchedule: string;
+  siteAndLandscape: string;
+  lightingAndAtmosphere: string;
+  cameraComposition: string;
+  preservedReferenceElements: string[];
+  refinedDesignElements: string[];
+  photorealisticPrompt: string;
+  negativeConstraints: string;
+}
+
+export interface AdditionalArchitecturalView {
+  id: string;
+  viewType: ArchitecturalCameraView;
+  viewLabel: string;
+  imageUrl: string;
+  timestamp: number;
+  imageModelUsed?: string;
+  resolution?: ImageResolution;
+  visualStyle?: ArchitecturalVisualStyle;
+  promptUsed?: string;
+}
 
 export type ArchitecturalDeliverableType =
   | 'exterior-render'
@@ -90,7 +139,12 @@ export type ArchitecturalDeliverableType =
 
 export interface InAppStudioResult {
   imageUrl?: string;
-  imageSource?: 'gemini-image' | 'imagen-3' | null;
+  imageSource?: string | null;
+  imageModelUsed?: string;
+  reasoningModelUsed?: string;
+  visualStyle?: ArchitecturalVisualStyle;
+  viewType?: ArchitecturalCameraView;
+  resolution?: ImageResolution;
   deliverableType?: ArchitecturalDeliverableType;
   aspectRatio?: '16:9' | '4:3' | '1:1';
   conceptStatement: string;
@@ -103,6 +157,10 @@ export interface InAppStudioResult {
   jurorDefenseTips: { question: string; suggestedAnswer: string }[];
   buildingCodeNotes?: string[];
   enhancedPrompt?: string;
+  photorealisticPrompt?: string;
+  architecturalSpec?: ArchitecturalDesignSpecification;
+  additionalViews?: AdditionalArchitecturalView[];
+  renderError?: string;
   svgFloorPlan?: string;
   comparisonImageUrl?: string;
   modelUsed: string;

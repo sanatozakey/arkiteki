@@ -83,37 +83,57 @@ describe('Task 2: Focused Architectural AI Studio System', () => {
     });
   });
 
-  describe('Architectural Perspective Visual Rendering', () => {
-    it('generates high-fidelity architectural perspective SVG with 24mm tilt-shift alignment and authentic materials', async () => {
-      const { generateArchitecturalPerspectiveSvg } = await import('../src/utils/geminiApi');
-      const svg = generateArchitecturalPerspectiveSvg('Modern Community Civic Center', '16:9');
+  describe('Photorealistic Architectural Rendering Pipeline & Fallback Prevention', () => {
+    it('strictly validates real raster images and rejects SVGs or cartoon vectors', async () => {
+      const { validateGeneratedImage } = await import('../src/utils/geminiApi');
 
-      expect(svg).toContain('<svg');
-      expect(svg).toContain('viewBox="0 0 1200 675"');
-      expect(svg).toContain('ARKITEKI ARCHITECTURAL VISUALIZATION');
-      expect(svg).toContain('24mm TILT-SHIFT PERSPECTIVE');
-      expect(svg).toContain('MODERN COMMUNITY CIVIC CENTER');
-      expect(svg).toContain('concretePlanks');
-      expect(svg).toContain('timberSlats');
-      expect(svg).toContain('glassGrad');
-      expect(svg).toContain('BP 344 Universal Accessibility Entry Ramp');
-      expect(svg).toContain('</svg>');
+      // Valid minimal PNG data URL
+      const validPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      expect(validateGeneratedImage(validPng).isValid).toBe(true);
+
+      // Valid minimal JPEG data URL
+      const validJpeg = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=';
+      expect(validateGeneratedImage(validJpeg).isValid).toBe(true);
+
+      // Rejects SVG vector illustrations
+      const svgIllustration = 'data:image/svg+xml;utf8,<svg viewBox="0 0 100 100"><rect width="100" height="100"/></svg>';
+      expect(validateGeneratedImage(svgIllustration).isValid).toBe(false);
+
+      // Rejects invalid strings
+      expect(validateGeneratedImage(undefined).isValid).toBe(false);
+      expect(validateGeneratedImage('').isValid).toBe(false);
+      expect(validateGeneratedImage('https://example.com/render.png').isValid).toBe(true);
     });
 
-    it('adapts viewBox dimensions to requested aspect ratios (16:9, 4:3, 1:1)', async () => {
-      const { generateArchitecturalPerspectiveSvg } = await import('../src/utils/geminiApi');
-      
-      const svg16_9 = generateArchitecturalPerspectiveSvg('Test Plate', '16:9');
-      expect(svg16_9).toContain('viewBox="0 0 1200 675"');
+    it('exposes the official Gemini Image Generation models (Nano Banana, 3 Pro, 3.1 Flash)', async () => {
+      const { 
+        IMAGE_GENERATION_MODELS, 
+        ARCHITECTURAL_CAMERA_VIEWS, 
+        ARCHITECTURAL_VISUAL_STYLES,
+        CAMERA_VIEW_KEYS,
+        VISUAL_STYLE_KEYS
+      } = await import('../src/utils/geminiApi');
 
-      const svg4_3 = generateArchitecturalPerspectiveSvg('Test Plate', '4:3');
-      expect(svg4_3).toContain('viewBox="0 0 1200 900"');
+      const modelIds = IMAGE_GENERATION_MODELS.map((m) => m.id);
+      expect(modelIds).toContain('gemini-nano-banana-2.1');
+      expect(modelIds).toContain('gemini-3-pro-image');
+      expect(modelIds).toContain('gemini-3.1-flash-image');
 
-      const svg1_1 = generateArchitecturalPerspectiveSvg('Test Plate', '1:1');
-      expect(svg1_1).toContain('viewBox="0 0 1200 1200"');
+      expect(CAMERA_VIEW_KEYS).toContain('hero-perspective');
+      expect(CAMERA_VIEW_KEYS).toContain('front-elevation');
+      expect(CAMERA_VIEW_KEYS).toContain('aerial-drone');
+      expect(CAMERA_VIEW_KEYS).toContain('eye-level-plaza');
+      expect(CAMERA_VIEW_KEYS).toContain('facade-detail');
+
+      expect(ARCHITECTURAL_CAMERA_VIEWS['hero-perspective'].label).toBeDefined();
+      expect(ARCHITECTURAL_CAMERA_VIEWS['front-elevation'].promptModifier).toContain('elevation');
+
+      expect(VISUAL_STYLE_KEYS).toContain('photography');
+      expect(VISUAL_STYLE_KEYS).toContain('vray-cgi');
+      expect(ARCHITECTURAL_VISUAL_STYLES['vray-cgi'].label).toBeDefined();
     });
 
-    it('generateInAppImage returns a valid visual deliverable with imageUrl and source', async () => {
+    it('generateInAppImage does NOT return synthetic SVG fallbacks when API fails', async () => {
       const { generateInAppImage } = await import('../src/utils/geminiApi');
       const res = await generateInAppImage({
         apiKey: 'dummy_key',
@@ -121,10 +141,32 @@ describe('Task 2: Focused Architectural AI Studio System', () => {
         aspectRatio: '16:9',
       });
 
-      expect(res).not.toBeNull();
-      expect(res?.imageUrl).toBeDefined();
-      expect(res?.imageUrl).toMatch(/^data:image\//);
-      expect(res?.source).toBeDefined();
+      // Must NOT return an imageUrl with an SVG cartoon fallback
+      expect(res.imageUrl).toBeNull();
+      // Must report honest actionable error
+      expect(res.error).toBeDefined();
+      expect(res.error).toContain('API key not valid');
+    });
+
+    it('synthesizeArchitecturalSpecification constructs photorealistic prompt with 24mm tilt-shift and bioclimatics', async () => {
+      const { synthesizeArchitecturalSpecification } = await import('../src/utils/geminiApi');
+      const spec = await synthesizeArchitecturalSpecification({
+        apiKey: 'dummy_key',
+        reasoningModel: 'gemini-3.8-flash',
+        prompt: 'modern 2-storey city hall in Sorsogon with whale shark canopy, timber louvers, and public plaza',
+        aspectRatio: '16:9',
+        resolution: '2K',
+        visualStyle: 'photography',
+        viewType: 'hero-perspective',
+      });
+
+      expect(spec.conceptStatement).toBeDefined();
+      expect(spec.materialPalette.length).toBeGreaterThan(0);
+      expect(spec.environmentalAnalysis.solarOrientation).toBeDefined();
+      expect(spec.photorealisticPrompt).toContain('24mm tilt-shift');
+      expect(spec.photorealisticPrompt).toContain('plumb and straight');
+      expect(spec.architecturalSpec.negativeConstraints).toContain('cartoon');
     });
   });
 });
+
