@@ -4,11 +4,13 @@ export interface QuizQuestion {
   id: string;
   type: 'multiple-choice' | 'identification' | 'situational';
   question: string;
-  options?: string[]; // 4 choices (A, B, C, D)
+  options: string[]; // 4 choices (A, B, C, D)
   correctAnswer: number; // 0, 1, 2, 3
   explanation: string;
   category?: string;
   codeReference?: string; // e.g. "PD 1096 Sec. 704" or "BP 344 Rule II"
+  sourceReference?: string; // Page, section, or heading citation
+  difficulty?: 'Easy' | 'Moderate' | 'Challenging' | 'Board-Exam Level';
 }
 
 export interface FlashcardItem {
@@ -17,6 +19,16 @@ export interface FlashcardItem {
   back: string; // Answer, Code Rule, or Formula
   category: string;
   hint?: string;
+}
+
+export interface DetectedDocumentMetadata {
+  title: string;
+  primarySubject: string;
+  secondaryTopics: string[];
+  keyTermsAndConcepts: string[];
+  estimatedDifficulty: 'Easy' | 'Moderate' | 'Challenging' | 'Board-Exam Level';
+  summary: string;
+  sourceConfidence?: number;
 }
 
 export interface QuizDeck {
@@ -29,6 +41,7 @@ export interface QuizDeck {
   questions: QuizQuestion[];
   flashcards: FlashcardItem[];
   isCustom?: boolean;
+  detectedMetadata?: DetectedDocumentMetadata;
 }
 
 export interface UploadedFileItem {
@@ -40,6 +53,7 @@ export interface UploadedFileItem {
   mimeType: string;
   textPreview?: string;
   rawText?: string;
+  detectedMetadata?: DetectedDocumentMetadata;
 }
 
 export interface PromptCritiqueResult {
@@ -64,11 +78,21 @@ export interface SavedPromptItem {
   tags: string[];
 }
 
-export type GeminiModelId = 'gemini-3.8-flash' | 'gemini-2.0-flash' | 'gemini-3.5-flash-lite' | 'gemini-1.5-pro' | 'gemini-1.5-flash' | 'gemini-2.5-flash';
+export type GeminiModelId = 'gemini-3.8-flash' | 'gemini-2.0-flash' | 'gemini-3.5-flash-lite' | 'gemini-1.5-pro' | 'gemini-1.5-flash' | 'gemini-2.5-flash' | 'gemini-nano-banana-2.1';
+
+export type ArchitecturalDeliverableType =
+  | 'exterior-render'
+  | 'interior-render'
+  | 'floor-plan'
+  | 'elevation-section'
+  | 'sketch-redesign'
+  | 'presentation-board';
 
 export interface InAppStudioResult {
   imageUrl?: string;
   imageSource?: 'gemini-image' | 'imagen-3' | null;
+  deliverableType?: ArchitecturalDeliverableType;
+  aspectRatio?: '16:9' | '4:3' | '1:1';
   conceptStatement: string;
   materialPalette: { material: string; application: string; rationale: string }[];
   environmentalAnalysis: {
@@ -79,6 +103,8 @@ export interface InAppStudioResult {
   jurorDefenseTips: { question: string; suggestedAnswer: string }[];
   buildingCodeNotes?: string[];
   enhancedPrompt?: string;
+  svgFloorPlan?: string;
+  comparisonImageUrl?: string;
   modelUsed: string;
   timestamp: number;
 }

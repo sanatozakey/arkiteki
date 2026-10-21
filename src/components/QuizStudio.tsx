@@ -14,13 +14,14 @@ import {
   AlertCircle,
   Download,
   X,
-  Trash2
+  Trash2,
+  BookOpen
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ALE_REVIEW_DECKS } from '../data/quizDecks';
 import { generateQuizFromNotes, buildGeminiExamPrompt } from '../utils/quizGenerator';
 import { processUploadedFile } from '../utils/fileParser';
-import { generateQuizWithGemini } from '../utils/geminiApi';
+import { generateQuizWithGemini, detectTopicsWithGemini } from '../utils/geminiApi';
 import { saveQuizScoreToSupabase } from '../utils/supabaseClient';
 import { generateQuizPdf, generateFlashcardsPdf } from '../utils/pdfGenerator';
 import type { QuizQuestion, FlashcardItem, QuizDeck, UploadedFileItem, QuizAttemptRecord } from '../types';
@@ -274,9 +275,30 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
       const processed = await processUploadedFile(file);
       setUploadedFile(processed);
 
-      // If user typed no custom title, derive from file name
-      const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-      setCustomTopic(cleanName);
+      // Automatic topic detection with Gemini if apiKey available
+      if (apiKey && (processed.rawText || processed.base64Data)) {
+        try {
+          setGenerationStage('Identifying document subject, topics, and key concepts with Gemini AI...');
+          const meta = await detectTopicsWithGemini({
+            apiKey,
+            fileItem: processed,
+            rawText: processed.rawText,
+            model: currentModel,
+          });
+          processed.detectedMetadata = meta;
+          setCustomTopic(meta.primarySubject || meta.title);
+        } catch (e) {
+          console.warn('Gemini topic detection fallback to local:', e);
+          if (processed.detectedMetadata) {
+            setCustomTopic(processed.detectedMetadata.primarySubject || processed.detectedMetadata.title);
+          }
+        }
+      } else if (processed.detectedMetadata) {
+        setCustomTopic(processed.detectedMetadata.primarySubject || processed.detectedMetadata.title);
+      } else {
+        const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        setCustomTopic(cleanName);
+      }
 
       // If text extracted, populate preview
       if (processed.textPreview && !pastedNotes) {
@@ -290,7 +312,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
     }
   };
 
-  // Turn custom notes or file into interactive quiz (Foolproof & Zero-fail)
+  // Turn custom notes or file into interactive quiz (Strict Count & 100% Grounded)
   const handleGenerateFromNotes = async () => {
     if (!pastedNotes.trim() && !uploadedFile && !customTopic.trim()) {
       setErrorMessage('Please upload a file or paste study notes first.');
@@ -300,7 +322,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
     const targetCount = getEffectiveQuestionCount();
     setIsProcessingFile(true);
     setErrorMessage('');
-    setGenerationStage(`Analyzing architectural study materials for a ${targetCount}-question exam...`);
+    setGenerationStage(`Analyzing architectural study materials for a strict ${targetCount}-question exam...`);
 
     try {
       let questions: QuizQuestion[] = [];
@@ -309,7 +331,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
       if (apiKey) {
         try {
-          setGenerationStage(`Generating ${targetCount} Philippine Board Exam questions with Gemini AI...`);
+          setGenerationStage(`Generating exactly ${targetCount} Philippine Board Exam questions with Gemini AI...`);
           const generated = await generateQuizWithGemini({
             apiKey,
             notesText: pastedNotes || undefined,
@@ -317,6 +339,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
             topicTitle: customTopic || 'Philippine Architecture Review',
             model: currentModel,
             questionCount: targetCount,
+            detectedMetadata: uploadedFile?.detectedMetadata,
           });
 
           if (generated.questions && generated.questions.length > 0) {
@@ -333,26 +356,27 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
       // If Gemini wasn't used or returned no items, use client-side licensure generator
       if (questions.length === 0) {
-        setGenerationStage(`Synthesizing ${targetCount} questions with Philippine Licensure Knowledge Base...`);
-        const sourceText = pastedNotes.trim() || uploadedFile?.textPreview || customTopic;
+        setGenerationStage(`Synthesizing exactly ${targetCount} questions with Philippine Licensure Knowledge Base...`);
+        const sourceText = pastedNotes.trim() || uploadedFile?.rawText || uploadedFile?.textPreview || customTopic;
         const result = generateQuizFromNotes(sourceText, customTopic || 'Custom Review Notes', targetCount);
         questions = result.questions;
         flashcards = result.flashcards;
         badgeLabel = apiKey ? 'Local Engine' : 'Offline Mode';
       }
 
-      const cleanTitle = customTopic.trim() || (uploadedFile ? uploadedFile.name.replace(/\.[^/.]+$/, '') : 'Custom Review Notes');
+      const cleanTitle = customTopic.trim() || uploadedFile?.detectedMetadata?.title || (uploadedFile ? uploadedFile.name.replace(/\.[^/.]+$/, '') : 'Custom Review Notes');
 
       const newDeck: QuizDeck = {
         id: `deck-custom-${Date.now()}`,
         title: cleanTitle,
-        subject: 'Uploaded Lesson',
+        subject: uploadedFile?.detectedMetadata?.primarySubject || 'Uploaded Lesson',
         badge: badgeLabel,
         description: `Custom reviewer created from ${uploadedFile ? uploadedFile.name : 'study notes'}.`,
         questionCount: questions.length,
         questions,
         flashcards,
         isCustom: true,
+        detectedMetadata: uploadedFile?.detectedMetadata,
       };
 
       // Add to decks list and persist custom decks
@@ -366,7 +390,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
         }
         return updated;
       });
-      handleSelectDeck(newDeck);
+      handleSelectDeck(newDeck, targetCount);
       setActiveMode('decks');
 
       // Celebration confetti
@@ -952,9 +976,65 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
           </div>
 
           {uploadedFile && (
-            <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-[#2C6E49] dark:text-emerald-300">
-              <FileCheck className="w-4 h-4 shrink-0" />
-              <span>Loaded: <strong>{uploadedFile.name}</strong></span>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-xs text-[#2C6E49] dark:text-emerald-300">
+                <div className="flex items-center gap-2.5">
+                  <FileCheck className="w-4 h-4 shrink-0 text-[#2C6E49] dark:text-emerald-400" />
+                  <div>
+                    <span className="font-bold text-stone-900 dark:text-stone-100">{uploadedFile.name}</span>
+                    <span className="text-[11px] text-stone-500 dark:text-stone-400 block">
+                      {(uploadedFile.size / 1024).toFixed(1)} KB • {uploadedFile.mimeType}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUploadedFile(null)}
+                  className="p-1 rounded-lg text-stone-400 hover:text-rose-600 transition cursor-pointer"
+                  title="Remove file"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Detected Subject & Topics Review Card */}
+              {uploadedFile.detectedMetadata && (
+                <div className="p-4 rounded-2xl bg-[#FAF8F5] dark:bg-stone-950 border border-[#E8E4DC] dark:border-stone-800 space-y-3 animate-fade-in">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F0ECE1] dark:border-stone-800 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-[#2C6E49] dark:text-emerald-400" />
+                      <span className="text-xs font-bold text-stone-900 dark:text-stone-100">
+                        Detected Subject: {uploadedFile.detectedMetadata.primarySubject}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-[#1B4332] dark:text-emerald-300 font-bold uppercase">
+                      {uploadedFile.detectedMetadata.estimatedDifficulty}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed m-0">
+                    {uploadedFile.detectedMetadata.summary}
+                  </p>
+
+                  {uploadedFile.detectedMetadata.secondaryTopics.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-mono uppercase text-stone-400 dark:text-stone-500 font-semibold tracking-wider">
+                        Identified Core Topics:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {uploadedFile.detectedMetadata.secondaryTopics.map((topic, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[11px] px-2.5 py-1 rounded-lg bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 text-stone-700 dark:text-stone-300 font-medium"
+                          >
+                            {topic}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

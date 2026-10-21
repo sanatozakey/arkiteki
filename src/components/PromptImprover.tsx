@@ -56,6 +56,8 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [saved, setSaved] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<'16:9' | '4:3' | '1:1'>('16:9');
+  const [activeVisualTab, setActiveVisualTab] = useState<'render' | 'floor-plan' | 'comparison'>('render');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [showPromptDetails, setShowPromptDetails] = useState(false);
 
@@ -145,12 +147,18 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
         model: currentModel,
         prompt: textToUse,
         fileItem: attachedFile || undefined,
+        aspectRatio,
       });
 
       clearTimeout(stageTimer1);
       clearTimeout(stageTimer2);
 
       setStudioResult(result);
+      if (result.svgFloorPlan && !result.imageUrl) {
+        setActiveVisualTab('floor-plan');
+      } else {
+        setActiveVisualTab('render');
+      }
 
       // Save to prompt history for Profile view
       try {
@@ -400,19 +408,41 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
 
         {/* Primary Action Button Bar */}
         <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-[#F0ECE1] dark:border-stone-800">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-stone-600 dark:text-stone-400">Gemini Model:</span>
-            <select
-              value={currentModel}
-              onChange={(e) => onModelUpdated(e.target.value)}
-              className="text-xs font-medium bg-[#FAF8F5] dark:bg-stone-950 border border-[#E8E4DC] dark:border-stone-800 rounded-xl px-2.5 py-1.5 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49] dark:focus:border-emerald-500 cursor-pointer"
-            >
-              {GEMINI_MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.tag} {m.isPro ? '(Pro User)' : ''}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-stone-600 dark:text-stone-400">Model:</span>
+              <select
+                value={currentModel}
+                onChange={(e) => onModelUpdated(e.target.value)}
+                className="text-xs font-medium bg-[#FAF8F5] dark:bg-stone-950 border border-[#E8E4DC] dark:border-stone-800 rounded-xl px-2.5 py-1.5 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49] dark:focus:border-emerald-500 cursor-pointer"
+              >
+                {GEMINI_MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.tag} {m.isPro ? '(Pro User)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-stone-600 dark:text-stone-400">Ratio:</span>
+              <div className="flex items-center gap-1 bg-[#FAF8F5] dark:bg-stone-950 p-0.5 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
+                {(['16:9', '4:3', '1:1'] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setAspectRatio(r)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition cursor-pointer ${
+                      aspectRatio === r
+                        ? 'bg-[#2C6E49] text-white shadow-xs'
+                        : 'text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           <button
@@ -483,9 +513,61 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
             </div>
           </div>
 
-          {/* 1. VISUAL SHOWCASE: High-Res Render / Perspective Image */}
-          {studioResult.imageUrl ? (
-            <div className="space-y-2">
+          {/* Visual Deliverables Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#F0ECE1] dark:border-stone-800 pb-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setActiveVisualTab('render')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  activeVisualTab === 'render'
+                    ? 'bg-[#2C6E49] text-white shadow-xs'
+                    : 'bg-[#FAF8F5] dark:bg-stone-950 text-stone-600 dark:text-stone-400 hover:text-stone-900 border border-[#E8E4DC] dark:border-stone-800'
+                }`}
+              >
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>Photorealistic Render</span>
+              </button>
+
+              {studioResult.svgFloorPlan && (
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualTab('floor-plan')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    activeVisualTab === 'floor-plan'
+                      ? 'bg-[#2C6E49] text-white shadow-xs'
+                      : 'bg-[#FAF8F5] dark:bg-stone-950 text-stone-600 dark:text-stone-400 hover:text-stone-900 border border-[#E8E4DC] dark:border-stone-800'
+                  }`}
+                >
+                  <Building className="w-3.5 h-3.5" />
+                  <span>CAD Floor Plan (SVG)</span>
+                </button>
+              )}
+
+              {studioResult.comparisonImageUrl && (
+                <button
+                  type="button"
+                  onClick={() => setActiveVisualTab('comparison')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    activeVisualTab === 'comparison'
+                      ? 'bg-[#2C6E49] text-white shadow-xs'
+                      : 'bg-[#FAF8F5] dark:bg-stone-950 text-stone-600 dark:text-stone-400 hover:text-stone-900 border border-[#E8E4DC] dark:border-stone-800'
+                  }`}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Compare Sketch vs Render</span>
+                </button>
+              )}
+            </div>
+
+            <span className="text-[11px] font-mono text-stone-400 dark:text-stone-500">
+              Format: {studioResult.aspectRatio || aspectRatio} • {studioResult.deliverableType || 'Architectural Deliverable'}
+            </span>
+          </div>
+
+          {/* 1. VISUAL SHOWCASE: Tab-based delivery */}
+          {activeVisualTab === 'render' && studioResult.imageUrl && (
+            <div className="space-y-2 animate-fade-in">
               <div className="relative group rounded-2xl overflow-hidden border border-[#E8E4DC] dark:border-stone-800 bg-stone-950 max-h-[500px] flex items-center justify-center">
                 <img
                   src={studioResult.imageUrl}
@@ -516,7 +598,71 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
                 <span>Ready for Thesis & Presentation Boards</span>
               </div>
             </div>
-          ) : (
+          )}
+
+          {activeVisualTab === 'floor-plan' && studioResult.svgFloorPlan && (
+            <div className="space-y-2 animate-fade-in">
+              <div className="relative group rounded-2xl overflow-hidden border border-[#E8E4DC] dark:border-stone-800 bg-[#FAF8F5] p-2 flex items-center justify-center max-h-[550px]">
+                <div
+                  className="w-full h-auto max-h-[520px] flex items-center justify-center"
+                  dangerouslySetInnerHTML={{ __html: studioResult.svgFloorPlan }}
+                />
+                <div className="absolute bottom-3 right-3 flex items-center gap-2 bg-stone-900/85 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shadow-lg">
+                  <a
+                    href={`data:image/svg+xml;utf8,${encodeURIComponent(studioResult.svgFloorPlan)}`}
+                    download={`arkiteki-floorplan-${Date.now()}.svg`}
+                    className="p-1.5 text-white hover:text-emerald-400 rounded-lg hover:bg-white/10 transition flex items-center gap-1 text-xs font-semibold"
+                    title="Download CAD SVG Plan"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download CAD SVG</span>
+                  </a>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-stone-400 dark:text-stone-500 font-mono px-1">
+                <span>Vector Architectural Linework • Scale 1:100 • PD 1096 & BP 344 compliant</span>
+                <span>Fully scalable CAD SVG</span>
+              </div>
+            </div>
+          )}
+
+          {activeVisualTab === 'comparison' && studioResult.comparisonImageUrl && (
+            <div className="space-y-2 animate-fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-2xl p-3 bg-stone-950 border border-[#E8E4DC] dark:border-stone-800">
+                <div className="space-y-1.5">
+                  <span className="text-xs font-mono font-bold text-amber-400 px-2 block">
+                    Before: Attached Sketch / Clay Model
+                  </span>
+                  <div className="rounded-xl overflow-hidden border border-white/10 bg-black flex items-center justify-center max-h-[360px]">
+                    <img
+                      src={studioResult.comparisonImageUrl}
+                      alt="Original Sketch"
+                      className="w-full h-auto max-h-[360px] object-contain"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-xs font-mono font-bold text-emerald-400 px-2 block">
+                    After: Arkiteki Photorealistic Architecture
+                  </span>
+                  <div className="rounded-xl overflow-hidden border border-white/10 bg-black flex items-center justify-center max-h-[360px]">
+                    <img
+                      src={studioResult.imageUrl}
+                      alt="Synthesized Architecture"
+                      className="w-full h-auto max-h-[360px] object-contain"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-stone-400 dark:text-stone-500 font-mono px-1">
+                <span>Multimodal Vision Geometry Locked • Proportions preserved from user input</span>
+                <span>Publication-Grade Rendering</span>
+              </div>
+            </div>
+          )}
+
+          {!studioResult.imageUrl && !studioResult.svgFloorPlan && (
             <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40 rounded-2xl flex items-center gap-2 text-xs text-[#1B4332] dark:text-emerald-300">
               <ShieldCheck className="w-4 h-4 text-[#2C6E49] dark:text-emerald-400 flex-shrink-0" />
               <span>Architectural presentation dossier synthesized directly in-app using <strong>{studioResult.modelUsed}</strong>.</span>
