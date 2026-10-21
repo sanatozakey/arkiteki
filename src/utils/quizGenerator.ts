@@ -123,15 +123,44 @@ export function generateQuizFromNotes(
     { term: 'PD 1096 Eaves and Canopy Clearance above Sidewalk', definition: 'Minimum clear vertical height of 3.00 meters above the established sidewalk grade.', code: 'PD 1096 Section 1004' }
   ];
 
-  // Fill keyItems from knowledge bank up to targetQuestionCount
-  let bankIndex = 0;
-  while (keyItems.length < targetQuestionCount && bankIndex < PHILIPPINE_ALE_BANK.length) {
-    const item = PHILIPPINE_ALE_BANK[bankIndex];
-    if (!keyItems.some(k => k.term === item.term)) {
-      keyItems.push(item);
+    // Comprehensive high-yield sentences from the provided text
+    const hasSufficientUserText = text && text.trim().length > 50;
+
+    if (hasSufficientUserText && keyItems.length < targetQuestionCount) {
+      // Extract every distinct statement, clause, or paragraph from the uploaded notes
+      const extraClauses = text
+        .split(/[\n;\.]/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 15 && s.length < 250);
+
+      let clauseIdx = 0;
+      while (keyItems.length < targetQuestionCount && clauseIdx < extraClauses.length) {
+        const clause = extraClauses[clauseIdx];
+        if (!keyItems.some((k) => k.definition === clause)) {
+          // Extract term from first 2-5 words
+          const words = clause.split(/\s+/);
+          const derivedTerm = words.slice(0, Math.min(words.length, 4)).join(' ');
+          keyItems.push({
+            term: derivedTerm,
+            definition: clause,
+            code: topicTitle,
+          });
+        }
+        clauseIdx++;
+      }
     }
-    bankIndex++;
-  }
+
+    // Only if user text is completely empty or very short, use the general bank
+    if (!hasSufficientUserText && keyItems.length < targetQuestionCount) {
+      let bankIndex = 0;
+      while (keyItems.length < targetQuestionCount && bankIndex < PHILIPPINE_ALE_BANK.length) {
+        const item = PHILIPPINE_ALE_BANK[bankIndex];
+        if (!keyItems.some((k) => k.term === item.term)) {
+          keyItems.push(item);
+        }
+        bankIndex++;
+      }
+    }
 
   // Build flashcards (up to 20)
   keyItems.slice(0, Math.min(keyItems.length, 25)).forEach((item, index) => {

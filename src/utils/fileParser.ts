@@ -13,7 +13,8 @@ export async function processUploadedFile(file: File): Promise<UploadedFileItem>
       type: 'text/plain',
       mimeType: 'text/plain',
       base64Data,
-      textPreview: textContent.slice(0, 400) + (textContent.length > 400 ? '...' : ''),
+      rawText: textContent,
+      textPreview: textContent.slice(0, 500) + (textContent.length > 500 ? '...' : ''),
     };
   }
 
@@ -33,7 +34,8 @@ export async function processUploadedFile(file: File): Promise<UploadedFileItem>
             type: 'text/plain',
             mimeType: 'text/plain',
             base64Data: btoa(unescape(encodeURIComponent(extractedText))),
-            textPreview: extractedText.slice(0, 400) + (extractedText.length > 400 ? '...' : ''),
+            rawText: extractedText,
+            textPreview: extractedText.slice(0, 500) + (extractedText.length > 500 ? '...' : ''),
           };
         }
       }
@@ -46,12 +48,31 @@ export async function processUploadedFile(file: File): Promise<UploadedFileItem>
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
-    reader.onload = () => {
+    reader.onload = async () => {
       const result = reader.result as string;
       // Extract base64 without "data:mime;base64," prefix
       const base64Match = result.match(/^data:(.*?);base64,(.*)$/);
       const cleanBase64 = base64Match ? base64Match[2] : '';
       const detectedMime = base64Match ? base64Match[1] : mimeType;
+
+      let extractedPdfText = '';
+      if (detectedMime === 'application/pdf') {
+        try {
+          // Attempt basic ASCII stream text extraction from PDF
+          const arrayBuffer = await file.arrayBuffer();
+          const decoder = new TextDecoder('latin1');
+          const pdfRaw = decoder.decode(arrayBuffer);
+          const textMatches = pdfRaw.match(/\(([^\(\)\\]{3,100})\)\s*T[jJ]/g);
+          if (textMatches && textMatches.length > 5) {
+            extractedPdfText = textMatches
+              .map((m) => m.replace(/^[\s\(]+|[\)\sTjJ]+$/g, ''))
+              .filter((t) => t.length > 2)
+              .join(' ');
+          }
+        } catch {
+          // PDF text extraction optional, Gemini natively reads application/pdf base64
+        }
+      }
 
       resolve({
         name: file.name,
@@ -60,7 +81,10 @@ export async function processUploadedFile(file: File): Promise<UploadedFileItem>
         mimeType: detectedMime,
         base64Data: cleanBase64,
         dataUrl: result,
-        textPreview: `[Attached ${file.name} (${Math.round(file.size / 1024)} KB)]`,
+        rawText: extractedPdfText || undefined,
+        textPreview: extractedPdfText 
+          ? extractedPdfText.slice(0, 500) + '...'
+          : `[Attached ${file.name} (${Math.round(file.size / 1024)} KB)]`,
       });
     };
 

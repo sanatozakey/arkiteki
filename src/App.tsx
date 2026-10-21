@@ -20,6 +20,34 @@ export const App: React.FC = () => {
   const [apiKey, setApiKey] = useState<string>(() => getStoredGeminiKey());
   const [selectedModel, setSelectedModel] = useState<string>(() => getStoredGeminiModel());
   
+  // Theme state: 'light' | 'dark'
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const stored = localStorage.getItem('arkiteki_theme');
+      if (stored === 'light' || stored === 'dark') return stored;
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('arkiteki_theme', theme);
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    } catch (e) {
+      console.warn('Theme storage error', e);
+    }
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // Check active Supabase or demo session on mount
   useEffect(() => {
     async function loadUser() {
@@ -91,7 +119,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-800 flex flex-col font-sans selection:bg-[#2C6E49]/15 selection:text-[#1B4332]">
+    <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#121417] text-stone-800 dark:text-stone-200 flex flex-col font-sans selection:bg-[#2C6E49]/15 selection:text-[#1B4332] transition-colors">
       {/* Subtle warm drafting grid pattern */}
       <div className="fixed inset-0 drafting-grid pointer-events-none z-0 opacity-60" />
 
@@ -109,6 +137,8 @@ export const App: React.FC = () => {
           user={user}
           onOpenAuthModal={() => setIsAuthModalOpen(true)}
           onSignOut={handleSignOut}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
         />
 
         <main className="flex-1 pb-16">
@@ -158,24 +188,24 @@ export const App: React.FC = () => {
         </main>
 
         {/* Soft, calm architectural footer */}
-        <footer className="border-t border-[#E8E4DC] bg-[#FAF8F5]/80 py-6 px-4 text-center text-xs text-stone-500">
+        <footer className="border-t border-[#E8E4DC] dark:border-stone-800 bg-[#FAF8F5]/80 dark:bg-stone-900/80 py-6 px-4 text-center text-xs text-stone-500 dark:text-stone-400 transition-colors">
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-stone-800 font-serif text-sm">Arkiteki</span>
+              <span className="font-semibold text-stone-800 dark:text-stone-200 font-serif text-sm">Arkiteki</span>
               <span>•</span>
               <span>Philippine Architecture Studio & Licensure Exam Companion</span>
             </div>
 
-            <div className="flex items-center gap-4 text-stone-500">
+            <div className="flex items-center gap-4 text-stone-500 dark:text-stone-400">
               <button
                 onClick={() => setIsConnectModalOpen(true)}
-                className="hover:text-stone-800 transition cursor-pointer"
+                className="hover:text-stone-800 dark:hover:text-stone-200 transition cursor-pointer"
               >
                 {apiKey ? `Connected to ${selectedModel}` : 'Connect Gemini API'}
               </button>
               <button
                 onClick={() => setIsSavedModalOpen(true)}
-                className="hover:text-stone-800 transition cursor-pointer"
+                className="hover:text-stone-800 dark:hover:text-stone-200 transition cursor-pointer"
               >
                 Saved Library
               </button>

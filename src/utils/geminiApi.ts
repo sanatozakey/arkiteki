@@ -398,7 +398,7 @@ ${cleaned}${fileNote}
 
 /**
  * Direct In-App Image Rendering:
- * Attempts to generate image using Gemini / Imagen 3 APIs directly
+ * Generates high quality architectural render visual using Imagen 3 / Gemini
  */
 export async function generateInAppImage({
   apiKey,
@@ -407,37 +407,9 @@ export async function generateInAppImage({
   apiKey: string;
   prompt: string;
 }): Promise<{ imageUrl: string; source: 'gemini-image' | 'imagen-3' } | null> {
-  // Strategy 1: OpenAI Image generations compatibility layer with gemini-2.5-flash-image
-  try {
-    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gemini-2.5-flash-image',
-        prompt: prompt.slice(0, 1000),
-        response_format: 'b64_json',
-        n: 1,
-      }),
-    });
+  const cleanPrompt = prompt.slice(0, 1000);
 
-    if (res.ok) {
-      const data = await res.json();
-      const b64 = data.data?.[0]?.b64_json;
-      if (b64) {
-        return {
-          imageUrl: `data:image/png;base64,${b64}`,
-          source: 'gemini-image',
-        };
-      }
-    }
-  } catch (e) {
-    console.warn('OpenAI images/generations failed, attempting Imagen 3', e);
-  }
-
-  // Strategy 2: Imagen 3 Predict endpoint
+  // Strategy 1: Imagen 3 Generate 002
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`,
@@ -445,7 +417,7 @@ export async function generateInAppImage({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          instances: [{ prompt: prompt.slice(0, 1000) }],
+          instances: [{ prompt: cleanPrompt }],
           parameters: { sampleCount: 1, aspectRatio: '16:9' },
         }),
       }
@@ -462,7 +434,66 @@ export async function generateInAppImage({
       }
     }
   } catch (e) {
-    console.warn('Imagen 3 predict attempt failed', e);
+    console.warn('Imagen 3.0 predict failed, trying fast generate', e);
+  }
+
+  // Strategy 2: Imagen 3 Fast Generate
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-fast-generate-001:predict?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instances: [{ prompt: cleanPrompt }],
+          parameters: { sampleCount: 1, aspectRatio: '16:9' },
+        }),
+      }
+    );
+
+    if (res.ok) {
+      const data = await res.json();
+      const b64 = data.predictions?.[0]?.bytesBase64Encoded;
+      if (b64) {
+        return {
+          imageUrl: `data:image/png;base64,${b64}`,
+          source: 'imagen-3',
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Imagen fast predict failed', e);
+  }
+
+  // Strategy 3: Gemini High-Fidelity Architectural SVG Render Visual
+  try {
+    const svgPrompt = `You are a master architectural renderer and drafting visualizer.
+Generate a breathtaking, publication-grade architectural SVG presentation visual (viewBox="0 0 1200 675" for 16:9 widescreen) of:
+"${cleanPrompt}"
+
+Visual Rules:
+- Include sophisticated architectural gradients for the sky (warm golden hour dusk or crisp daylight).
+- Render building massing, cantilevered balconies, tropical wooden brise-soleil louvers, clear glass mullions, and ground floor pilotis.
+- Add lush tropical landscaping silhouettes (palms, monstera, frangipani) and reflecting pool.
+- Use warm architectural color palettes (board-formed concrete grey, warm cedar timber #C85A32, deep tropical green #2C6E49).
+- Return ONLY the clean <svg ... </svg> code without markdown backticks or commentary.`;
+
+    const svgText = await callGeminiApi({
+      apiKey,
+      model: 'gemini-3.8-flash',
+      prompt: svgPrompt,
+    });
+
+    const svgMatch = svgText.match(/<svg[\s\S]*?<\/svg>/i);
+    if (svgMatch) {
+      const encodedSvg = encodeURIComponent(svgMatch[0]);
+      return {
+        imageUrl: `data:image/svg+xml;utf8,${encodedSvg}`,
+        source: 'gemini-image',
+      };
+    }
+  } catch (err) {
+    console.warn('Architectural SVG generation fallback', err);
   }
 
   return null;
@@ -498,6 +529,7 @@ Generate an exhaustive, presentation-grade architectural dossier for a design pl
 
 Analyze this architectural concept and respond ONLY in valid JSON matching this schema:
 {
+  "enhancedPrompt": "Pristine, publication-grade professional architectural rendering prompt describing this exact design with 24mm architectural tilt-shift lens, strictly plumb vertical columns, two-point perspective, authentic materiality (board-formed concrete, tropical wood louvers), and warm golden hour sunlight.",
   "conceptStatement": "A compelling 3-4 sentence design philosophy outlining the spatial narrative, vernacular/modern balance, and civic presence.",
   "materialPalette": [
     { "material": "Material name", "application": "Where it is placed on the building", "rationale": "Why chosen for Philippine climate or structure" },
@@ -510,6 +542,11 @@ Analyze this architectural concept and respond ONLY in valid JSON matching this 
     "windChanneling": "Aerodynamic strategy channeling Amihan (Northeast) & Habagat (Southwest) monsoons.",
     "stormWaterStrategy": "Monsoon rainwater retention, permeable pavers, and flood resilience measures."
   },
+  "buildingCodeNotes": [
+    "Specific PD 1096 National Building Code compliance note (setbacks, firewall, TOSL, or parking ratio)",
+    "BP 344 Accessibility Law compliance note (ramps, tactile paving, corridor clearances)",
+    "RA 9514 Fire Code egress / stair pressurization note"
+  ],
   "jurorDefenseTips": [
     { "question": "Tough question a university professor or juror will ask during defense?", "suggestedAnswer": "Strong, code-backed defense citing PD 1096 or BP 344." },
     { "question": "Second tough question about structural or site planning?", "suggestedAnswer": "Convincing architectural defense." }
@@ -578,6 +615,12 @@ Analyze this architectural concept and respond ONLY in valid JSON matching this 
         suggestedAnswer: 'Major glazing faces strictly North, shielded by deep horizontal overhangs and Low-E solar coatings to prevent heat entrapment.',
       },
     ],
+    buildingCodeNotes: dossier?.buildingCodeNotes || [
+      'PD 1096 Sec. 704 & 708: Building conforms to maximum allowable Total Open Space within Lot (TOSL) with 4.5m front setback and 2.0m rear yard clearance.',
+      'BP 344 Rule II: Inclusive access provided with 1:12 ramp gradients, 1.5m turning clearances, and dropped curb ramps along pedestrian desire lines.',
+      'RA 9514 Fire Code: 2 remote smoke-proof enclosed fire escape stairwells pressurized against smoke infiltration.'
+    ],
+    enhancedPrompt: dossier?.enhancedPrompt || `Professional architectural photograph of ${prompt.trim()}. Captured with a 24mm architectural tilt-shift lens from human eye-level (1.6m). Vertical columns and mullions are strictly plumb and straight. Warm late afternoon golden hour lighting, authentic board-formed concrete, tropical Philippine landscape. Editorial publication quality for ArchDaily.`,
     modelUsed: chosenModel,
     timestamp: Date.now(),
   };
@@ -604,39 +647,56 @@ export async function generateQuizWithGemini({
   const chosenModel = model || getStoredGeminiModel();
   const numFlashcards = Math.min(questionCount, 15);
 
-  const prompt = `You are an expert reviewer and question writer for the Philippine Architecture Licensure Examination (ALE / PRC Board of Architecture).
-Analyze the provided study material and generate a comprehensive ${questionCount}-item multiple-choice exam and ${numFlashcards} flashcards.
+  const fullSourceContent = fileItem?.rawText || notesText || '';
 
-Format your response strictly as valid JSON with no markdown wrapping or backticks:
+  const prompt = `CRITICAL INSTRUCTION — 100% SOURCE GROUNDING & CONTENT RELEVANCE:
+You are an expert exam reviewer. You are analyzing an architectural lesson/document titled "${topicTitle}".
+
+MANDATORY REQUIREMENT:
+Every single question, distractor, and flashcard MUST BE DIRECTLY AND EXCLUSIVELY EXTRACTED FROM THIS ATTACHED STUDY MATERIAL OR TEXT.
+- Do NOT inject generic building laws (e.g. PD 1096, BP 344) UNLESS this uploaded lesson is explicitly about those laws!
+- If the uploaded material is about Architectural History, test ONLY the specific buildings, architects, dates, or eras mentioned.
+- If the uploaded material is about Structural Design or Materials, test ONLY those structural formulas, loads, and material properties.
+- If the uploaded material is about Building Utilities/Plumbing/HVAC, test ONLY those systems.
+- Every question must test a concrete concept, formula, rule, definition, or example present in this lesson.
+- In the "explanation" field, quote or cite the exact sentence or concept from this uploaded material that proves the answer.
+
+Generate exactly ${questionCount} multiple-choice questions (with 4 choices A-D, where 1 is correct) and ${numFlashcards} key recall flashcards.
+
+Respond strictly as valid JSON with NO markdown backticks:
 {
   "questions": [
     {
       "id": "q-1",
       "type": "multiple-choice",
-      "question": "Question text here?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "question": "Question text testing a concept directly from the provided material?",
+      "options": ["Correct answer", "Distractor 1", "Distractor 2", "Distractor 3"],
       "correctAnswer": 0,
-      "explanation": "Detailed explanation citing the specific Philippine code or architectural theory.",
-      "codeReference": "e.g. PD 1096 Section 805 or BP 344 Rule II",
+      "explanation": "Detailed explanation citing the specific sentence or principle in the uploaded lesson.",
+      "codeReference": "Source citation / section title from uploaded notes",
       "category": "${topicTitle}"
     }
   ],
   "flashcards": [
     {
       "id": "fc-1",
-      "front": "Term or Concept",
-      "back": "Exact rule, dimension, or definition",
+      "front": "Specific term, concept, or formula from the lesson",
+      "back": "Exact definition or rule from the lesson",
       "category": "${topicTitle}"
     }
   ]
 }`;
 
+  const promptToSend = fullSourceContent 
+    ? `${prompt}\n\n[UPLOADED LESSON / STUDY MATERIAL - EXTRACT QUESTIONS ONLY FROM THIS]:\n${fullSourceContent.slice(0, 20000)}`
+    : prompt;
+
   const textResponse = await callGeminiApi({
     apiKey,
     model: chosenModel,
-    prompt: notesText ? `${prompt}\n\nStudy Notes:\n${notesText.slice(0, 5000)}` : prompt,
+    prompt: promptToSend,
     fileItem,
-    systemInstruction: 'You are a master PRC Board of Architecture licensure exam writer specializing in PD 1096 (NBCP), BP 344, RA 9514, and Philippine architectural history.',
+    systemInstruction: 'You are an academic architectural examiner. Your absolute mandate is 100% adherence to the user\'s uploaded document. Never generate questions on external topics not mentioned in the upload.',
   });
 
   const jsonMatch = textResponse.match(/\{[\s\S]*\}/);

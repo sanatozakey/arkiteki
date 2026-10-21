@@ -329,9 +329,26 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
+    <div className="max-w-6xl mx-auto px-4 py-6 md:py-8 space-y-6 md:space-y-8 animate-fade-in">
+      {/* Top Navigation Bar */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          onClick={() => onNavigateTab('quiz')}
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl border border-[#E8E4DC] dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 text-xs font-bold transition cursor-pointer shadow-xs hover:border-stone-400 dark:hover:border-stone-600"
+        >
+          <span>← Back to Studio</span>
+        </button>
+
+        <div className="flex items-center gap-2 text-xs font-mono text-stone-500 dark:text-stone-400">
+          <span className="hidden sm:inline">Active Hub:</span>
+          <span className="px-2.5 py-1 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-semibold">
+            🏛️ Arkiteki Profile & History
+          </span>
+        </div>
+      </div>
+
       {/* 1. Header Profile Banner */}
-      <div className="bg-white border border-[#E8E4DC] rounded-3xl p-6 sm:p-8 shadow-xs relative overflow-hidden">
+      <div className="bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 rounded-3xl p-6 sm:p-8 shadow-xs relative overflow-hidden transition-colors">
         {/* Soft decorative background glow */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-[#2C6E49]/10 via-[#FAF8F5] to-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
 
@@ -339,7 +356,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
             {/* Avatar Display */}
             <div className="relative group">
-              <div className="w-20 h-20 rounded-3xl bg-[#FAF8F5] border-2 border-[#2C6E49]/20 shadow-sm flex items-center justify-center text-4xl overflow-hidden">
+              <div className="w-20 h-20 rounded-3xl bg-[#FAF8F5] dark:bg-stone-950 border-2 border-[#2C6E49]/20 shadow-sm flex items-center justify-center text-4xl overflow-hidden">
                 {profile.avatarUrl ? (
                   <img
                     src={profile.avatarUrl}

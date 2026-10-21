@@ -12,7 +12,9 @@ import {
   Upload, 
   FileCheck, 
   AlertCircle,
-  Download
+  Download,
+  X,
+  Trash2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ALE_REVIEW_DECKS } from '../data/quizDecks';
@@ -40,10 +42,38 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 }) => {
   const [activeMode, setActiveMode] = useState<'decks' | 'custom' | 'flashcards'>('decks');
 
-  // Active decks state (supports uploaded and generated decks)
-  const [allDecks, setAllDecks] = useState<QuizDeck[]>(ALE_REVIEW_DECKS);
-  const [selectedDeck, setSelectedDeck] = useState<QuizDeck>(ALE_REVIEW_DECKS[0]);
-  const [currentQuestions, setCurrentQuestions] = useState<QuizQuestion[]>(ALE_REVIEW_DECKS[0].questions);
+  // Active decks state (persists custom uploaded decks + default decks)
+  const [allDecks, setAllDecks] = useState<QuizDeck[]>(() => {
+    try {
+      const stored = localStorage.getItem('arkiteki_custom_decks');
+      if (stored) {
+        const customDecks: QuizDeck[] = JSON.parse(stored);
+        if (Array.isArray(customDecks) && customDecks.length > 0) {
+          return [...customDecks, ...ALE_REVIEW_DECKS];
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load custom decks from localStorage', e);
+    }
+    return ALE_REVIEW_DECKS;
+  });
+
+  const [selectedDeck, setSelectedDeck] = useState<QuizDeck>(() => {
+    try {
+      const stored = localStorage.getItem('arkiteki_custom_decks');
+      if (stored) {
+        const customDecks: QuizDeck[] = JSON.parse(stored);
+        if (Array.isArray(customDecks) && customDecks.length > 0) {
+          return customDecks[0];
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return ALE_REVIEW_DECKS[0];
+  });
+
+  const [currentQuestions, setCurrentQuestions] = useState<QuizQuestion[]>(() => selectedDeck.questions);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState<boolean>(false);
@@ -63,8 +93,33 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
     return questionCountType;
   };
 
-  // Expands deck questions up to targetCount using the high-yield Philippine Licensure Knowledge Bank
+  // Removes a custom uploaded topic deck from state & localStorage
+  const handleRemoveCustomDeck = (deckId: string) => {
+    if (!window.confirm('Are you sure you want to remove this uploaded topic deck?')) {
+      return;
+    }
+    setAllDecks((prev) => {
+      const updated = prev.filter((d) => d.id !== deckId);
+      const customOnly = updated.filter((d) => d.isCustom);
+      try {
+        localStorage.setItem('arkiteki_custom_decks', JSON.stringify(customOnly));
+      } catch (e) {
+        console.warn(e);
+      }
+      return updated;
+    });
+
+    if (selectedDeck.id === deckId) {
+      handleSelectDeck(ALE_REVIEW_DECKS[0]);
+    }
+  };
+
+  // Expands deck questions up to targetCount without contaminating custom uploaded decks
   const buildQuestionsForDeck = (deck: QuizDeck, targetCount: number): QuizQuestion[] => {
+    // If user uploaded this deck, keep questions strictly from their upload!
+    if (deck.isCustom) {
+      return deck.questions.slice(0, targetCount);
+    }
     if (deck.questions.length >= targetCount) {
       return deck.questions.slice(0, targetCount);
     }
@@ -286,23 +341,31 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
         badgeLabel = apiKey ? 'Local Engine' : 'Offline Mode';
       }
 
-      const cleanTitle =
-        customTopic.trim() ||
-        (uploadedFile ? uploadedFile.name.replace(/\.[^/.]+$/, '') : 'Custom Licensure Review');
+      const cleanTitle = customTopic.trim() || (uploadedFile ? uploadedFile.name.replace(/\.[^/.]+$/, '') : 'Custom Review Notes');
 
       const newDeck: QuizDeck = {
-        id: `deck-${Date.now()}`,
+        id: `deck-custom-${Date.now()}`,
         title: cleanTitle,
-        subject: 'Uploaded Material',
+        subject: 'Uploaded Lesson',
         badge: badgeLabel,
         description: `Custom reviewer created from ${uploadedFile ? uploadedFile.name : 'study notes'}.`,
         questionCount: questions.length,
         questions,
         flashcards,
+        isCustom: true,
       };
 
-      // Add to decks list and select immediately
-      setAllDecks((prev) => [newDeck, ...prev]);
+      // Add to decks list and persist custom decks
+      setAllDecks((prev) => {
+        const updated = [newDeck, ...prev];
+        const customOnly = updated.filter((d) => d.isCustom);
+        try {
+          localStorage.setItem('arkiteki_custom_decks', JSON.stringify(customOnly));
+        } catch (e) {
+          console.warn('Failed to save custom decks to localStorage', e);
+        }
+        return updated;
+      });
       handleSelectDeck(newDeck);
       setActiveMode('decks');
 
@@ -414,21 +477,21 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
         <span className="text-[11px] font-mono font-bold tracking-wider px-3 py-1 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] uppercase inline-block">
           Philippine Architecture Licensure Exam (ALE)
         </span>
-        <h2 className="text-2xl md:text-3xl font-bold text-stone-900 tracking-tight">
+        <h2 className="text-2xl md:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight font-serif">
           Lesson Quizzes & Flashcards
         </h2>
-        <p className="text-xs md:text-sm text-stone-600 leading-relaxed">
+        <p className="text-xs md:text-sm text-stone-600 dark:text-stone-400 leading-relaxed">
           Upload any PDF, Word document, image, or notes to generate board-exam multiple choice questions and flashcards.
         </p>
 
         {/* Mode Selector */}
-        <div className="flex items-center justify-center gap-1.5 p-1 rounded-2xl bg-white border border-[#E8E4DC] w-fit mx-auto mt-4 shadow-sm">
+        <div className="flex items-center justify-center gap-1.5 p-1 rounded-2xl bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 w-fit mx-auto mt-4 shadow-xs">
           <button
             onClick={() => setActiveMode('decks')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
               activeMode === 'decks'
-                ? 'bg-[#2C6E49] text-white font-bold shadow-sm'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-[#2C6E49] text-white font-bold shadow-xs'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <GraduationCap className="w-4 h-4" />
@@ -439,8 +502,8 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
             onClick={() => setActiveMode('flashcards')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
               activeMode === 'flashcards'
-                ? 'bg-[#2C6E49] text-white font-bold shadow-sm'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-[#2C6E49] text-white font-bold shadow-xs'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <Layers className="w-4 h-4" />
@@ -451,8 +514,8 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
             onClick={() => setActiveMode('custom')}
             className={`px-4 py-2 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
               activeMode === 'custom'
-                ? 'bg-[#2C6E49] text-white font-bold shadow-sm'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-[#2C6E49] text-white font-bold shadow-xs'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <Upload className="w-4 h-4" />
@@ -465,10 +528,10 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
       {activeMode === 'decks' && (
         <div className="space-y-4">
           {/* Question Count Selector Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#FAF8F5] p-3 rounded-2xl border border-[#E8E4DC] text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#FAF8F5] dark:bg-stone-950 p-3 rounded-2xl border border-[#E8E4DC] dark:border-stone-800 text-xs transition-colors">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-stone-700">Exam Question Count:</span>
-              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E8E4DC]">
+              <span className="font-semibold text-stone-700 dark:text-stone-300">Exam Question Count:</span>
+              <div className="flex items-center gap-1 bg-white dark:bg-stone-900 p-1 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
                 {([15, 25, 50] as const).map((count) => (
                   <button
                     key={count}
@@ -477,7 +540,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                     className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer text-xs ${
                       questionCountType === count
                         ? 'bg-[#2C6E49] text-white shadow-xs'
-                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800'
                     }`}
                   >
                     {count} Questions
@@ -490,7 +553,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                   className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer text-xs ${
                     questionCountType === 'custom'
                       ? 'bg-[#2C6E49] text-white shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-800'
                   }`}
                 >
                   Custom
@@ -500,7 +563,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
             {questionCountType === 'custom' && (
               <div className="flex items-center gap-2 animate-fade-in">
-                <span className="text-stone-500 text-xs">Items:</span>
+                <span className="text-stone-500 dark:text-stone-400 text-xs">Items:</span>
                 <input
                   type="number"
                   min={5}
@@ -510,33 +573,46 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                     const val = parseInt(e.target.value) || 15;
                     handleCountSelectionChange('custom', val);
                   }}
-                  className="w-16 px-2.5 py-1 text-xs font-mono font-bold rounded-lg border border-[#E8E4DC] bg-white text-stone-800 focus:outline-none focus:border-[#2C6E49]"
+                  className="w-16 px-2.5 py-1 text-xs font-mono font-bold rounded-lg border border-[#E8E4DC] dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49]"
                 />
-                <span className="text-[10px] text-stone-400 font-mono">(5 - 100 items)</span>
+                <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">(5 - 100 items)</span>
               </div>
             )}
 
-            <div className="text-[11px] text-stone-500 font-mono">
-              Exam Length: <strong className="text-[#2C6E49] font-bold">{currentQuestions.length} Questions</strong>
+            <div className="text-[11px] text-stone-500 dark:text-stone-400 font-mono">
+              Exam Length: <strong className="text-[#2C6E49] dark:text-emerald-400 font-bold">{currentQuestions.length} Questions</strong>
             </div>
           </div>
 
           {/* Deck Selector & PDF Export Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#E8E4DC] shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-stone-900 p-3 rounded-2xl border border-[#E8E4DC] dark:border-stone-800 shadow-xs transition-colors">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-              <span className="text-xs text-stone-400 font-mono px-2">Topic:</span>
+              <span className="text-xs text-stone-400 dark:text-stone-500 font-mono px-2">Topic:</span>
               {allDecks.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => handleSelectDeck(d)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
-                    selectedDeck.id === d.id
-                      ? 'bg-[#2C6E49]/15 text-[#2C6E49] border border-[#2C6E49]/30 font-bold'
-                      : 'bg-[#FAF8F5] text-stone-600 border border-[#E8E4DC] hover:text-stone-900'
-                  }`}
-                >
-                  {d.title}
-                </button>
+                <div key={d.id} className="relative inline-flex items-center">
+                  <button
+                    onClick={() => handleSelectDeck(d)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                      selectedDeck.id === d.id
+                        ? 'bg-[#2C6E49]/15 text-[#2C6E49] dark:text-emerald-400 border border-[#2C6E49]/30 font-bold'
+                        : 'bg-[#FAF8F5] dark:bg-stone-950 text-stone-600 dark:text-stone-400 border border-[#E8E4DC] dark:border-stone-800 hover:text-stone-900 dark:hover:text-stone-100'
+                    }`}
+                  >
+                    <span>{d.title}</span>
+                    {d.isCustom && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveCustomDeck(d.id);
+                        }}
+                        className="p-0.5 rounded-md hover:bg-rose-100 dark:hover:bg-rose-950/50 hover:text-rose-600 text-stone-400 transition cursor-pointer ml-1"
+                        title="Remove this uploaded topic"
+                      >
+                        <X className="w-3 h-3" />
+                      </span>
+                    )}
+                  </button>
+                </div>
               ))}
             </div>
 
@@ -552,9 +628,9 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                   generateQuizPdf(exportDeck);
                 }}
                 title="Download Official Philippine Architecture Licensure Exam PDF with Answer Key"
-                className="text-xs text-stone-700 hover:text-[#1B4332] flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E8E4DC] bg-[#FAF8F5] hover:bg-emerald-50 hover:border-[#2C6E49]/30 cursor-pointer transition font-semibold"
+                className="text-xs text-stone-700 dark:text-stone-300 hover:text-[#1B4332] dark:hover:text-emerald-300 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E8E4DC] dark:border-stone-800 bg-[#FAF8F5] dark:bg-stone-950 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:border-[#2C6E49]/30 cursor-pointer transition font-semibold"
               >
-                <Download className="w-3.5 h-3.5 text-[#2C6E49]" />
+                <Download className="w-3.5 h-3.5 text-[#2C6E49] dark:text-emerald-400" />
                 <span>Exam PDF</span>
               </button>
 
@@ -563,20 +639,31 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                   generateFlashcardsPdf(selectedDeck);
                 }}
                 title="Download Printable Study Flashcards PDF"
-                className="text-xs text-stone-700 hover:text-[#C85A32] flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E8E4DC] bg-[#FAF8F5] hover:bg-amber-50 hover:border-[#C85A32]/30 cursor-pointer transition font-semibold"
+                className="text-xs text-stone-700 dark:text-stone-300 hover:text-[#C85A32] dark:hover:text-amber-400 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E8E4DC] dark:border-stone-800 bg-[#FAF8F5] dark:bg-stone-950 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:border-[#C85A32]/30 cursor-pointer transition font-semibold"
               >
-                <Download className="w-3.5 h-3.5 text-[#C85A32]" />
+                <Download className="w-3.5 h-3.5 text-[#C85A32] dark:text-amber-500" />
                 <span>Flashcards PDF</span>
               </button>
 
               <button
                 onClick={handleExportReviewer}
                 title="Copy reviewer to clipboard"
-                className="text-xs text-stone-500 hover:text-stone-800 flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[#E8E4DC] bg-[#FAF8F5] hover:bg-stone-100 cursor-pointer transition font-medium"
+                className="text-xs text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[#E8E4DC] dark:border-stone-800 bg-[#FAF8F5] dark:bg-stone-950 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer transition font-medium"
               >
                 {exported ? <Check className="w-3.5 h-3.5 text-[#2C6E49]" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{exported ? 'Copied' : 'Markdown'}</span>
               </button>
+
+              {selectedDeck.isCustom && (
+                <button
+                  onClick={() => handleRemoveCustomDeck(selectedDeck.id)}
+                  className="text-xs text-rose-600 hover:text-rose-800 flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 cursor-pointer transition font-semibold"
+                  title="Remove this uploaded topic"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Delete Topic</span>
+                </button>
+              )}
 
               <button
                 onClick={handleRestartQuiz}
@@ -591,27 +678,27 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
           {/* Active Question Card */}
           {!quizFinished && currentQ ? (
-            <div className="bg-white border border-[#E8E4DC] rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+            <div className="bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 rounded-3xl p-6 md:p-8 shadow-xs space-y-6 transition-colors">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-[#F0ECE1] pb-3">
+              <div className="flex items-center justify-between border-b border-[#F0ECE1] dark:border-stone-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#FAF8F5] text-[#2C6E49] border border-[#E8E4DC]">
+                  <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-stone-950 text-[#2C6E49] dark:text-emerald-400 border border-[#E8E4DC] dark:border-stone-800">
                     Question {currentQuestionIndex + 1} of {currentQuestions.length}
                   </span>
                   {currentQ.category && (
-                    <span className="text-[11px] font-mono text-stone-400">
+                    <span className="text-[11px] font-mono text-stone-400 dark:text-stone-500">
                       • {currentQ.category}
                     </span>
                   )}
                 </div>
 
-                <span className="text-xs font-mono text-stone-500">
-                  Score: <strong className="text-[#2C6E49] font-bold">{score}</strong> / {currentQuestionIndex + (isAnswerSubmitted ? 1 : 0)}
+                <span className="text-xs font-mono text-stone-500 dark:text-stone-400">
+                  Score: <strong className="text-[#2C6E49] dark:text-emerald-400 font-bold">{score}</strong> / {currentQuestionIndex + (isAnswerSubmitted ? 1 : 0)}
                 </span>
               </div>
 
               {/* Question Text */}
-              <h3 className="text-base md:text-lg font-semibold text-stone-900 leading-relaxed m-0">
+              <h3 className="text-base md:text-lg font-semibold text-stone-900 dark:text-stone-100 leading-relaxed m-0 font-serif">
                 {currentQ.question}
               </h3>
 
@@ -621,14 +708,14 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                   const isSelected = selectedOption === idx;
                   const isCorrect = idx === currentQ.correctAnswer;
 
-                  let style = 'border-[#E8E4DC] bg-[#FAF8F5] hover:border-stone-400 text-stone-800';
+                  let style = 'border-[#E8E4DC] dark:border-stone-800 bg-[#FAF8F5] dark:bg-stone-950 hover:border-stone-400 dark:hover:border-stone-700 text-stone-800 dark:text-stone-200';
                   if (isAnswerSubmitted) {
                     if (isCorrect) {
-                      style = 'border-[#2C6E49] bg-emerald-50 text-[#1B4332] ring-1 ring-[#2C6E49]';
+                      style = 'border-[#2C6E49] bg-emerald-50 dark:bg-emerald-950/40 text-[#1B4332] dark:text-emerald-300 ring-1 ring-[#2C6E49]';
                     } else if (isSelected && !isCorrect) {
-                      style = 'border-rose-400 bg-rose-50 text-rose-900 ring-1 ring-rose-400';
+                      style = 'border-rose-400 bg-rose-50 dark:bg-rose-950/40 text-rose-900 dark:text-rose-300 ring-1 ring-rose-400';
                     } else {
-                      style = 'border-[#E8E4DC] bg-[#FAF8F5] text-stone-400 opacity-60';
+                      style = 'border-[#E8E4DC] dark:border-stone-800 bg-[#FAF8F5] dark:bg-stone-950 text-stone-400 dark:text-stone-600 opacity-60';
                     }
                   }
 
@@ -648,7 +735,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                             ? 'bg-[#2C6E49] text-white'
                             : isAnswerSubmitted && isSelected && !isCorrect
                             ? 'bg-rose-500 text-white'
-                            : 'bg-white border border-[#E8E4DC] text-stone-600'
+                            : 'bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 text-stone-600 dark:text-stone-300'
                         }`}>
                           {letter}
                         </span>
@@ -659,7 +746,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
                       {isAnswerSubmitted && (
                         <div>
-                          {isCorrect && <CheckCircle2 className="w-5 h-5 text-[#2C6E49] shrink-0" />}
+                          {isCorrect && <CheckCircle2 className="w-5 h-5 text-[#2C6E49] dark:text-emerald-400 shrink-0" />}
                           {isSelected && !isCorrect && <XCircle className="w-5 h-5 text-rose-500 shrink-0" />}
                         </div>
                       )}
@@ -772,17 +859,17 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                 </h3>
               ) : (
                 <div className="space-y-2">
-                  <p className="text-base md:text-lg font-semibold text-[#2C6E49] leading-relaxed">
+                  <p className="text-base md:text-lg font-semibold text-[#2C6E49] dark:text-emerald-400 leading-relaxed">
                     {currentCard?.back}
                   </p>
-                  <span className="text-[11px] text-stone-400 font-mono block">
+                  <span className="text-[11px] text-stone-400 dark:text-stone-500 font-mono block">
                     Category: {currentCard?.category}
                   </span>
                 </div>
               )}
             </div>
 
-            <div className="text-[11px] text-stone-400 font-mono">
+            <div className="text-[11px] text-stone-400 dark:text-stone-500 font-mono">
               Tap anywhere to reveal
             </div>
           </div>
@@ -794,7 +881,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                 setFlashcardIndex(prev => Math.max(0, prev - 1));
               }}
               disabled={flashcardIndex === 0}
-              className="px-4 py-2 rounded-xl bg-white border border-[#E8E4DC] hover:bg-stone-50 text-stone-600 disabled:opacity-40 text-xs font-semibold cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 disabled:opacity-40 text-xs font-semibold cursor-pointer"
             >
               ← Previous
             </button>
@@ -804,7 +891,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                 setIsFlipped(false);
                 setFlashcardIndex(prev => (prev + 1) % currentFlashcards.length);
               }}
-              className="px-6 py-2 rounded-xl bg-[#2C6E49] hover:bg-[#23583a] text-white font-semibold text-xs cursor-pointer shadow-sm"
+              className="px-6 py-2 rounded-xl bg-[#2C6E49] hover:bg-[#23583a] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white font-semibold text-xs cursor-pointer shadow-xs"
             >
               Next Card →
             </button>
@@ -814,25 +901,25 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
       {/* MODE 3: UPLOAD FILE & PASTE NOTES */}
       {activeMode === 'custom' && (
-        <div className="bg-white border border-[#E8E4DC] rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-[#F0ECE1] pb-3">
+        <div className="bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 rounded-3xl p-6 md:p-8 shadow-xs space-y-6 transition-colors">
+          <div className="flex items-center justify-between border-b border-[#F0ECE1] dark:border-stone-800 pb-3">
             <div>
-              <h3 className="text-sm md:text-base font-bold text-stone-900 m-0">
+              <h3 className="text-sm md:text-base font-bold text-stone-900 dark:text-stone-100 font-serif m-0">
                 Upload Lessons & Notes to Generate Quizzes
               </h3>
-              <p className="text-xs text-stone-500 m-0">
+              <p className="text-xs text-stone-500 dark:text-stone-400 m-0">
                 Supports PDF reviewers, Word files (.docx), photos of book pages (.jpg/.png), or text.
               </p>
             </div>
             {apiKey ? (
-              <span className="text-[11px] text-[#2C6E49] font-medium flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#2C6E49]" />
+              <span className="text-[11px] text-[#2C6E49] dark:text-emerald-400 font-medium flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#2C6E49] dark:bg-emerald-400 animate-pulse" />
                 <span>Gemini API Active</span>
               </span>
             ) : (
               <button
                 onClick={onOpenConnectModal}
-                className="text-[11px] text-stone-500 hover:text-[#2C6E49] underline cursor-pointer"
+                className="text-[11px] text-stone-500 dark:text-stone-400 hover:text-[#2C6E49] dark:hover:text-emerald-400 underline cursor-pointer"
               >
                 Connect Gemini Account
               </button>
@@ -840,7 +927,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
           </div>
 
           {/* Drag & Drop File Upload Box */}
-          <div className="border-2 border-dashed border-[#DDD8CE] hover:border-[#2C6E49] rounded-2xl p-6 text-center bg-[#FAF8F5] transition relative cursor-pointer group">
+          <div className="border-2 border-dashed border-[#DDD8CE] dark:border-stone-700 hover:border-[#2C6E49] dark:hover:border-emerald-500 rounded-2xl p-6 text-center bg-[#FAF8F5] dark:bg-stone-950 transition relative cursor-pointer group">
             <input
               type="file"
               accept=".pdf,.docx,.doc,.txt,.md,.jpg,.jpeg,.png,.webp"
@@ -848,14 +935,14 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
               className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
             />
             <div className="flex flex-col items-center justify-center space-y-2 pointer-events-none">
-              <div className="w-10 h-10 rounded-2xl bg-white border border-[#E8E4DC] text-[#2C6E49] flex items-center justify-center group-hover:scale-105 transition">
+              <div className="w-10 h-10 rounded-2xl bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 text-[#2C6E49] dark:text-emerald-400 flex items-center justify-center group-hover:scale-105 transition shadow-xs">
                 <Upload className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs font-bold text-stone-800 m-0">
+                <p className="text-xs font-bold text-stone-800 dark:text-stone-200 m-0">
                   {uploadedFile ? uploadedFile.name : 'Click or drop files here (PDF, Word, Images, Notes)'}
                 </p>
-                <p className="text-[11px] text-stone-500 m-0">
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 m-0">
                   {uploadedFile
                     ? `${Math.round(uploadedFile.size / 1024)} KB ready for quiz extraction`
                     : 'Upload your syllabus, National Building Code PDF, or lecture screenshots'}
@@ -865,7 +952,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
           </div>
 
           {uploadedFile && (
-            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-[#2C6E49]">
+            <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-[#2C6E49] dark:text-emerald-300">
               <FileCheck className="w-4 h-4 shrink-0" />
               <span>Loaded: <strong>{uploadedFile.name}</strong></span>
             </div>
@@ -874,7 +961,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
           {/* Text Area */}
           <div className="space-y-4">
             <div>
-              <label className="text-xs text-stone-600 block mb-1 font-medium">
+              <label className="text-xs text-stone-600 dark:text-stone-400 block mb-1 font-medium">
                 Topic / Subject Title
               </label>
               <input
@@ -882,13 +969,13 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                 value={customTopic}
                 onChange={(e) => setCustomTopic(e.target.value)}
                 placeholder="e.g. Philippine National Building Code (PD 1096)"
-                className="w-full bg-[#FAF8F5] border border-[#E8E4DC] rounded-xl px-4 py-2 text-xs text-stone-800 focus:outline-none focus:border-[#2C6E49]"
+                className="w-full bg-[#FAF8F5] dark:bg-stone-950 border border-[#E8E4DC] dark:border-stone-800 rounded-xl px-4 py-2 text-xs text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49] dark:focus:border-emerald-500"
               />
             </div>
 
             {/* Question Count Selector for Generation */}
             <div>
-              <label className="text-xs text-stone-600 block mb-1.5 font-medium">
+              <label className="text-xs text-stone-600 dark:text-stone-400 block mb-1.5 font-medium">
                 Number of Board Exam Questions to Generate
               </label>
               <div className="flex flex-wrap items-center gap-2">
@@ -900,7 +987,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                     className={`px-3 py-1.5 rounded-xl font-semibold transition cursor-pointer text-xs ${
                       questionCountType === count
                         ? 'bg-[#2C6E49] text-white shadow-xs'
-                        : 'bg-[#FAF8F5] text-stone-600 border border-[#E8E4DC] hover:text-stone-900'
+                        : 'bg-[#FAF8F5] dark:bg-stone-950 text-stone-600 dark:text-stone-400 border border-[#E8E4DC] dark:border-stone-800 hover:text-stone-900 dark:hover:text-stone-100'
                     }`}
                   >
                     {count} Questions
@@ -913,7 +1000,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                   className={`px-3 py-1.5 rounded-xl font-semibold transition cursor-pointer text-xs ${
                     questionCountType === 'custom'
                       ? 'bg-[#2C6E49] text-white shadow-xs'
-                      : 'bg-[#FAF8F5] text-stone-600 border border-[#E8E4DC] hover:text-stone-900'
+                      : 'bg-[#FAF8F5] dark:bg-stone-950 text-stone-600 dark:text-stone-400 border border-[#E8E4DC] dark:border-stone-800 hover:text-stone-900 dark:hover:text-stone-100'
                   }`}
                 >
                   Custom Count
@@ -930,16 +1017,16 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                         const val = parseInt(e.target.value) || 15;
                         handleCountSelectionChange('custom', val);
                       }}
-                      className="w-16 px-2.5 py-1 text-xs font-mono font-bold rounded-xl border border-[#E8E4DC] bg-white text-stone-800 focus:outline-none focus:border-[#2C6E49]"
+                      className="w-16 px-2.5 py-1 text-xs font-mono font-bold rounded-xl border border-[#E8E4DC] dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49]"
                     />
-                    <span className="text-[11px] text-stone-400">items</span>
+                    <span className="text-[11px] text-stone-400 dark:text-stone-500 font-mono">items</span>
                   </div>
                 )}
               </div>
             </div>
 
             <div>
-              <label className="text-xs text-stone-600 block mb-1 font-medium">
+              <label className="text-xs text-stone-600 dark:text-stone-400 block mb-1 font-medium">
                 Or Paste Study Notes / Outline Text
               </label>
               <textarea
@@ -951,7 +1038,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 - RA 9514: Maximum travel distance to exit is 45m (60m if sprinklered).
 - Leandro Locsin designed the Cultural Center of the Philippines."
                 rows={6}
-                className="w-full bg-[#FAF8F5] border border-[#E8E4DC] rounded-2xl p-4 text-xs font-mono text-stone-800 focus:outline-none focus:border-[#2C6E49] placeholder:text-stone-400 resize-none leading-relaxed"
+                className="w-full bg-[#FAF8F5] dark:bg-stone-950 border border-[#E8E4DC] dark:border-stone-800 rounded-2xl p-4 text-xs font-mono text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49] dark:focus:border-emerald-500 placeholder:text-stone-400 dark:placeholder:text-stone-600 resize-none leading-relaxed"
               />
             </div>
           </div>

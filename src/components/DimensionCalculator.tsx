@@ -74,24 +74,24 @@ export const DimensionCalculator: React.FC = () => {
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
       {/* Header */}
       <div className="text-center max-w-2xl mx-auto space-y-2">
-        <span className="text-[11px] font-mono font-bold tracking-wider px-3 py-1 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] uppercase inline-block">
+        <span className="text-[11px] font-mono font-bold tracking-wider px-3 py-1 rounded-full bg-[#2C6E49]/10 text-[#2C6E49] dark:bg-emerald-950/50 dark:text-emerald-400 uppercase inline-block">
           Philippine Building Laws Reference
         </span>
-        <h2 className="text-2xl md:text-3xl font-bold text-stone-900 tracking-tight">
+        <h2 className="text-2xl md:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight font-serif">
           Arki Dimension & Code Calculator
         </h2>
-        <p className="text-xs md:text-sm text-stone-600 leading-relaxed">
+        <p className="text-xs md:text-sm text-stone-600 dark:text-stone-400 leading-relaxed">
           Quickly compute National Building Code (PD 1096) parking requirements, BP 344 1:12 ramp lengths, and stair riser ergonomics for studio drafting plates.
         </p>
 
         {/* Tab Selector */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5 p-1 rounded-2xl bg-white border border-[#E8E4DC] w-fit mx-auto mt-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 p-1 rounded-2xl bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 w-fit mx-auto mt-4 shadow-xs">
           <button
             onClick={() => setActiveTool('parking')}
             className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
               activeTool === 'parking'
-                ? 'bg-[#2C6E49] text-white font-bold shadow-sm'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-[#2C6E49] text-white font-bold shadow-xs'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <Car className="w-3.5 h-3.5" />
@@ -102,8 +102,8 @@ export const DimensionCalculator: React.FC = () => {
             onClick={() => setActiveTool('ramp')}
             className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
               activeTool === 'ramp'
-                ? 'bg-[#2C6E49] text-white font-bold shadow-sm'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-[#2C6E49] text-white font-bold shadow-xs'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
@@ -114,8 +114,8 @@ export const DimensionCalculator: React.FC = () => {
             onClick={() => setActiveTool('stairs')}
             className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
               activeTool === 'stairs'
-                ? 'bg-[#2C6E49] text-white font-bold shadow-sm'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-[#2C6E49] text-white font-bold shadow-xs'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <Footprints className="w-3.5 h-3.5" />
@@ -126,8 +126,8 @@ export const DimensionCalculator: React.FC = () => {
             onClick={() => setActiveTool('cheatsheet')}
             className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
               activeTool === 'cheatsheet'
-                ? 'bg-[#2C6E49] text-white font-bold shadow-sm'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-[#2C6E49] text-white font-bold shadow-xs'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <Ruler className="w-3.5 h-3.5" />
@@ -138,8 +138,8 @@ export const DimensionCalculator: React.FC = () => {
             onClick={() => setActiveTool('checklist')}
             className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
               activeTool === 'checklist'
-                ? 'bg-[#2C6E49] text-white font-bold shadow-sm'
-                : 'text-stone-500 hover:text-stone-800'
+                ? 'bg-[#2C6E49] text-white font-bold shadow-xs'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
             }`}
           >
             <CheckSquare className="w-3.5 h-3.5" />
@@ -150,11 +150,11 @@ export const DimensionCalculator: React.FC = () => {
 
       {/* PARKING CALCULATOR */}
       {activeTool === 'parking' && (
-        <div className="bg-white border border-[#E8E4DC] rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+        <div className="bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 rounded-3xl p-6 md:p-8 shadow-xs space-y-6 transition-colors">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-stone-700 block mb-1.5">
+                <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1.5">
                   Building Typology (PD 1096 Table VII.4)
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -170,8 +170,8 @@ export const DimensionCalculator: React.FC = () => {
                       onClick={() => setBuildingType(t.id as any)}
                       className={`p-3 rounded-xl border text-xs font-medium text-left transition cursor-pointer ${
                         buildingType === t.id
-                          ? 'border-[#2C6E49] bg-emerald-50 text-[#1B4332] font-semibold'
-                          : 'border-[#E8E4DC] bg-[#FAF8F5] text-stone-600 hover:border-stone-400'
+                          ? 'border-[#2C6E49] dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-[#1B4332] dark:text-emerald-300 font-semibold'
+                          : 'border-[#E8E4DC] dark:border-stone-800 bg-[#FAF8F5] dark:bg-stone-950 text-stone-600 dark:text-stone-400 hover:border-stone-400 dark:hover:border-stone-700'
                       }`}
                     >
                       {t.label}
@@ -181,7 +181,7 @@ export const DimensionCalculator: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-stone-700 block mb-1.5">
+                <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1.5">
                   Gross Floor Area (GFA)
                 </label>
                 <div className="flex items-center gap-2">
@@ -190,46 +190,46 @@ export const DimensionCalculator: React.FC = () => {
                     value={gfa}
                     onChange={(e) => setGfa(Math.max(100, Number(e.target.value)))}
                     step="100"
-                    className="w-full bg-[#FAF8F5] border border-[#E8E4DC] rounded-xl px-4 py-2.5 text-xs md:text-sm font-mono text-stone-800 focus:outline-none focus:border-[#2C6E49]"
+                    className="w-full bg-[#FAF8F5] dark:bg-stone-950 border border-[#E8E4DC] dark:border-stone-800 rounded-xl px-4 py-2.5 text-xs md:text-sm font-mono text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49]"
                   />
-                  <span className="text-xs text-stone-500 font-mono">sqm</span>
+                  <span className="text-xs text-stone-500 dark:text-stone-400 font-mono">sqm</span>
                 </div>
               </div>
             </div>
 
             {/* Results */}
-            <div className="bg-[#FAF8F5] p-5 rounded-2xl border border-[#E8E4DC] space-y-4">
-              <span className="text-[11px] font-mono font-bold text-[#2C6E49] uppercase block">
+            <div className="bg-[#FAF8F5] dark:bg-stone-950 p-5 rounded-2xl border border-[#E8E4DC] dark:border-stone-800 space-y-4">
+              <span className="text-[11px] font-mono font-bold text-[#2C6E49] dark:text-emerald-400 uppercase block">
                 Required Slots (PD 1096 & BP 344)
               </span>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-white p-3.5 rounded-xl border border-[#E8E4DC]">
-                  <span className="text-stone-500 text-[11px] block">Standard Cars</span>
-                  <div className="text-xl font-bold text-stone-900 font-mono">{rawSlots} slots</div>
-                  <span className="text-[10px] text-stone-400 font-mono">(2.50m x 5.00m)</span>
+                <div className="bg-white dark:bg-stone-900 p-3.5 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
+                  <span className="text-stone-500 dark:text-stone-400 text-[11px] block">Standard Cars</span>
+                  <div className="text-xl font-bold text-stone-900 dark:text-stone-100 font-mono">{rawSlots} slots</div>
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">(2.50m x 5.00m)</span>
                 </div>
 
-                <div className="bg-white p-3.5 rounded-xl border border-[#E8E4DC]">
-                  <span className="text-stone-500 text-[11px] block">PWD Accessible</span>
-                  <div className="text-xl font-bold text-[#2C6E49] font-mono">{pwdSlots} slots</div>
-                  <span className="text-[10px] text-stone-400 font-mono">(3.80m x 5.00m)</span>
+                <div className="bg-white dark:bg-stone-900 p-3.5 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
+                  <span className="text-stone-500 dark:text-stone-400 text-[11px] block">PWD Accessible</span>
+                  <div className="text-xl font-bold text-[#2C6E49] dark:text-emerald-400 font-mono">{pwdSlots} slots</div>
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">(3.80m x 5.00m)</span>
                 </div>
 
-                <div className="bg-white p-3.5 rounded-xl border border-[#E8E4DC]">
-                  <span className="text-stone-500 text-[11px] block">Motorcycle (20%)</span>
-                  <div className="text-xl font-bold text-stone-900 font-mono">{motorcycleSlots} slots</div>
+                <div className="bg-white dark:bg-stone-900 p-3.5 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
+                  <span className="text-stone-500 dark:text-stone-400 text-[11px] block">Motorcycle (20%)</span>
+                  <div className="text-xl font-bold text-stone-900 dark:text-stone-100 font-mono">{motorcycleSlots} slots</div>
                 </div>
 
-                <div className="bg-white p-3.5 rounded-xl border border-[#E8E4DC]">
-                  <span className="text-stone-500 text-[11px] block">Loading Bays</span>
-                  <div className="text-xl font-bold text-stone-900 font-mono">{loadingBays} bay(s)</div>
+                <div className="bg-white dark:bg-stone-900 p-3.5 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
+                  <span className="text-stone-500 dark:text-stone-400 text-[11px] block">Loading Bays</span>
+                  <div className="text-xl font-bold text-stone-900 dark:text-stone-100 font-mono">{loadingBays} bay(s)</div>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-[#E8E4DC] flex items-center justify-between text-xs">
-                <span className="text-stone-600 font-medium">Estimated Parking Footprint:</span>
-                <span className="font-mono font-bold text-stone-900">~{approxParkingAreaSqm.toLocaleString()} sqm</span>
+              <div className="pt-2 border-t border-[#E8E4DC] dark:border-stone-800 flex items-center justify-between text-xs">
+                <span className="text-stone-600 dark:text-stone-400 font-medium">Estimated Parking Footprint:</span>
+                <span className="font-mono font-bold text-stone-900 dark:text-stone-100">~{approxParkingAreaSqm.toLocaleString()} sqm</span>
               </div>
 
               <button
@@ -240,7 +240,7 @@ export const DimensionCalculator: React.FC = () => {
 - Motorcycle Slots: ${motorcycleSlots} (1.50m x 2.50m)
 - Truck Loading Bays: ${loadingBays} (3.60m x 12.00m, 4.5m clearance)
 - Approx. Lot Footprint: ~${approxParkingAreaSqm} sqm (with 6.0m two-way aisles)`)}
-                className="w-full py-2 rounded-xl bg-white border border-[#E8E4DC] hover:bg-stone-50 text-stone-700 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full py-2 rounded-xl bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-[#2C6E49]" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copied ? 'Copied Specs for Plate Notes!' : 'Copy Summary for Drawing Sheet'}</span>

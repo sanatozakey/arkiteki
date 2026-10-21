@@ -28,6 +28,7 @@ export interface QuizDeck {
   questionCount: number;
   questions: QuizQuestion[];
   flashcards: FlashcardItem[];
+  isCustom?: boolean;
 }
 
 export interface UploadedFileItem {
@@ -38,6 +39,7 @@ export interface UploadedFileItem {
   dataUrl?: string; // Data URL for image rendering & previews
   mimeType: string;
   textPreview?: string;
+  rawText?: string;
 }
 
 export interface PromptCritiqueResult {
@@ -75,6 +77,8 @@ export interface InAppStudioResult {
     stormWaterStrategy: string;
   };
   jurorDefenseTips: { question: string; suggestedAnswer: string }[];
+  buildingCodeNotes?: string[];
+  enhancedPrompt?: string;
   modelUsed: string;
   timestamp: number;
 }
