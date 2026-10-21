@@ -121,9 +121,9 @@ export const ARCHITECTURAL_VISUAL_STYLES: Record<
 > = {
   photography: {
     label: 'Photorealistic Architectural Photography',
-    description: 'Canon EOS R5, 24mm tilt-shift lens, natural light, ArchDaily editorial publication standard',
+    description: 'Professional architectural camera, tilt-shift lens, natural light, ArchDaily editorial publication standard',
     promptModifier:
-      'Ultra-photorealistic architectural photograph, shot on Canon EOS R5 with 24mm tilt-shift lens, strictly plumb vertical lines, natural daylight, editorial architectural publication quality for ArchDaily and Architectural Digest.',
+      'Ultra-photorealistic architectural photograph, shot on professional camera with tilt-shift lens, strictly plumb vertical lines, natural atmospheric daylight, editorial architectural publication quality for ArchDaily and Architectural Digest.',
   },
   'vray-cgi': {
     label: 'High-End CGI (V-Ray / Corona Renderer)',
@@ -132,22 +132,22 @@ export const ARCHITECTURAL_VISUAL_STYLES: Record<
       'Physically based architectural CGI render produced in Chaos V-Ray and Corona Renderer, ray-traced glass reflections, accurate ambient occlusion, micro-surface imperfections, global illumination, high-end architectural visualization firm quality.',
   },
   'golden-hour': {
-    label: 'Golden Hour Tropical Sunlight',
-    description: 'Warm late afternoon Philippine sunlight, rich directional shadows, warm interior glow',
+    label: 'Golden Hour Sunlight',
+    description: 'Warm late-afternoon sunlight, rich directional shadows, warm interior glow',
     promptModifier:
-      'Warm late-afternoon golden hour tropical Philippine sunlight at 5:00 PM, low sun angle casting long soft shadows, warm amber highlights on timber louvers, warm 3000K interior lighting softly glowing through floor-to-ceiling glass curtain walls.',
+      'Warm late-afternoon golden hour sunlight, low sun angle casting long soft directional shadows, warm ambient highlights, warm interior lighting softly glowing through transparent fenestration.',
   },
   'dusk-bluehour': {
     label: 'Dramatic Dusk / Blue Hour',
     description: 'Deep cobalt twilight sky, warmly illuminated interior spaces, exterior architectural accent lighting',
     promptModifier:
-      'Dramatic twilight blue hour architectural lighting, deep rich cobalt blue sky, warmly illuminated interior spaces, subtle warm LED accent up-lights illuminating textured concrete shear walls, sleek water pool reflections.',
+      'Dramatic twilight blue hour architectural lighting, deep rich cobalt blue sky, warmly illuminated interior spaces, subtle architectural accent lighting highlighting exterior facade textures and reflective surfaces.',
   },
   overcast: {
-    label: 'Bright Overcast Tropical Daylight',
-    description: 'Diffused soft lighting, balanced material exposure, vibrant Philippine tropical foliage',
+    label: 'Bright Overcast Daylight',
+    description: 'Diffused soft lighting, balanced material exposure, natural ambient illumination',
     promptModifier:
-      'Bright overcast tropical daylight, soft diffused atmospheric illumination with zero harsh glare, perfectly balanced exposure revealing subtle concrete formwork textures and vibrant tropical foliage.',
+      'Bright overcast daylight, soft diffused atmospheric illumination with zero harsh glare, perfectly balanced exposure revealing subtle material textures and surrounding environment.',
   },
 };
 
@@ -157,33 +157,33 @@ export const ARCHITECTURAL_CAMERA_VIEWS: Record<
 > = {
   'hero-perspective': {
     label: 'Hero Two-Point Perspective',
-    description: 'Pedestrian eye-level street/plaza perspective with plumb verticals',
+    description: 'Eye-level architectural perspective with plumb verticals and balanced framing',
     promptModifier:
-      'Eye-level pedestrian two-point architectural perspective (1.6m camera height), 24mm tilt-shift lens, zero vertical convergence, perfectly straight vertical columns and mullions, balanced civic composition showing entrance and public plaza.',
+      'Eye-level pedestrian two-point architectural perspective (1.6m camera height), tilt-shift lens alignment, zero vertical convergence, strictly parallel and plumb vertical lines, balanced composition capturing primary facade and entrance.',
   },
   'front-elevation': {
-    label: 'Front Civic Elevation Perspective',
-    description: 'Orthogonal front perspective emphasizing facade rhythm and entrance portico',
+    label: 'Front Elevation Perspective',
+    description: 'Orthogonal front perspective emphasizing facade rhythm and structural composition',
     promptModifier:
-      'Front civic elevation-style architectural perspective, symmetrical or balanced facade rhythm, prominent 30-meter entrance portico, clearly articulated brise-soleil louvers and fenestration grid.',
+      'Orthogonal front elevation architectural perspective, balanced facade rhythm, clearly articulated structural bay modules, fenestration grid, and primary entrance hierarchy.',
   },
   'aerial-drone': {
     label: 'Three-Quarter Aerial View',
-    description: 'Elevated 45-degree perspective showing roof geometry and masterplan context',
+    description: 'Elevated 45-degree perspective showing building massing, roof form, and context',
     promptModifier:
-      'Elevated three-quarter aerial drone architectural perspective (45-degree angle), showcasing aerodynamic sweeping roof structure, roof garden terraces, bioswales, vehicular access, and integration with surrounding Philippine landscape.',
+      'Elevated three-quarter aerial drone architectural perspective (45-degree angle), showcasing overall building massing, roof geometry, site circulation, and contextual site integration.',
   },
   'eye-level-plaza': {
-    label: 'Pedestrian Eye-Level Plaza View',
-    description: 'Looking across the public civic plaza toward the grand canopy',
+    label: 'Pedestrian Street / Plaza View',
+    description: 'Ground-level perspective capturing building approach and human scale',
     promptModifier:
-      'Pedestrian eye-level view standing on the permeable stone civic plaza looking towards the grand entrance canopy, showing human scale entourage, water features, native shade trees, and seamless indoor-outdoor transition.',
+      'Pedestrian eye-level perspective from ground level, capturing the primary building approach, human scale entourage, and seamless ground plane integration.',
   },
   'facade-detail': {
-    label: 'Bioclimatic Facade & Material Detail',
-    description: 'Close-up architectural vignette of louvers, perforated screens, and joinery',
+    label: 'Architectural Facade & Material Detail',
+    description: 'Close-up vignette focusing on envelope materials, joinery, and tectonic depth',
     promptModifier:
-      'Close-up architectural detail shot of the facade, focusing on the perforated UHPC sunscreen panels, timber brise-soleil joinery, low-E glass edge details, and board-formed concrete texture with crisp shadows.',
+      'Close-up architectural detail shot of the exterior envelope, focusing on authentic material textures, architectural joinery, shadow depth, tectonic articulation, and craftsmanship.',
   },
 };
 
@@ -1219,8 +1219,25 @@ export async function generateInAppImage({
   const chosenStyle = ARCHITECTURAL_VISUAL_STYLES[visualStyle] || ARCHITECTURAL_VISUAL_STYLES.photography;
   const chosenView = ARCHITECTURAL_CAMERA_VIEWS[viewType] || ARCHITECTURAL_CAMERA_VIEWS['hero-perspective'];
 
+  // Check if prompt already specifies camera / perspective to avoid duplicate or conflicting camera directives
+  const hasSpecificCamera =
+    prompt.toLowerCase().includes('lens') ||
+    prompt.toLowerCase().includes('perspective') ||
+    prompt.toLowerCase().includes('tilt-shift') ||
+    prompt.toLowerCase().includes('worm');
+  const cameraDirective = hasSpecificCamera ? '' : `${chosenView.promptModifier} `;
+
+  // Check if prompt already specifies atmospheric lighting
+  const hasSpecificLighting =
+    prompt.toLowerCase().includes('lighting') ||
+    prompt.toLowerCase().includes('golden hour') ||
+    prompt.toLowerCase().includes('downpour') ||
+    prompt.toLowerCase().includes('nighttime') ||
+    prompt.toLowerCase().includes('blue hour');
+  const styleDirective = hasSpecificLighting ? '' : `${chosenStyle.promptModifier} `;
+
   // Construct rigorous positive prompt adhering to Section 2 of Photorealism Standard
-  const fullImagePrompt = `${chosenView.promptModifier} ${chosenStyle.promptModifier} Finished architectural design: ${prompt}. Real-world construction details: physically based materials with natural tonal variation; board-formed architectural concrete with subtle pores, tie-hole indentations, and crisp formwork edges; warm local Philippine teak timber slats with directional grain and joinery; high-performance solar Low-E glass curtain wall reflecting the ambient sky and surrounding landscape with subtle transparency into double-height interior spaces; powder-coated aluminum framing and mullions; textured stone ground paving with natural joint lines. Lush authentic tropical Philippine landscape: mature coconut palms (Cocos nucifera), native Narra shade trees, lush tropical shrubs, and permeable civic pedestrian plaza. Professional architectural camera rules: perfectly straight plumb vertical lines with zero vertical convergence, sharp depth of field, natural indirect illumination, realistic contact shadows, and ambient occlusion. Negative constraints: no cartoon, no flat illustration, no vector graphics, no 3D CAD clay model, no wireframe, no low poly, no oversaturated plastic colors, no watermarks, no text overlay, no artificial gradients.`;
+  const fullImagePrompt = `${cameraDirective}${styleDirective}${prompt}. Physically based materials (PBR) with authentic tactile micro-surface roughness, accurate ray-traced reflections, realistic contact shadows, natural indirect bounced illumination, ambient occlusion, subtle depth of field. Compositional standard: ArchDaily, Dezeen, and Architectural Digest editorial publication quality. Negative constraints: no cartoon, no flat vector illustration, no 3D CAD clay model, no wireframe, no low poly, no oversaturated plastic colors, no watermarks, no text overlay, no AI hallucinations, no warped columns, no distorted geometry.`;
 
   // Candidate models to attempt
   const candidateModels: ImageGenerationModelId[] = [
@@ -1390,10 +1407,525 @@ export async function generateInAppImage({
 }
 
 /**
+/**
+ * Detected Architectural Context for intelligent dynamic synthesis
+ */
+export interface DetectedArchitecturalContext {
+  styleName: string;
+  styleCategory:
+    | 'cyberpunk'
+    | 'neo-brutalist'
+    | 'brutalist'
+    | 'minimalist'
+    | 'parametric'
+    | 'industrial'
+    | 'scandinavian'
+    | 'gothic'
+    | 'classical'
+    | 'art-deco'
+    | 'mid-century'
+    | 'mediterranean'
+    | 'philippine-vernacular'
+    | 'tropical-modern'
+    | 'contemporary';
+  typologyName: string;
+  typologyCategory:
+    | 'arena'
+    | 'civic'
+    | 'residential'
+    | 'cultural'
+    | 'commercial'
+    | 'educational'
+    | 'healthcare'
+    | 'hospitality'
+    | 'religious'
+    | 'general';
+  detectedMaterials: string[];
+  detectedAtmosphere: string[];
+  detectedCamera: string[];
+  isTropicalOrPhilippine: boolean;
+  locationHint: string;
+}
+
+export function detectArchitecturalContext(rawPrompt: string, fileItem?: UploadedFileItem): DetectedArchitecturalContext {
+  const combined = `${rawPrompt} ${fileItem?.name || ''} ${fileItem?.textPreview || ''}`.toLowerCase();
+
+  const isTropicalOrPhilippine = Boolean(
+    combined.includes('philippine') ||
+    combined.includes('philippines') ||
+    combined.includes('manila') ||
+    combined.includes('cebu') ||
+    combined.includes('davao') ||
+    combined.includes('iloilo') ||
+    combined.includes('bicol') ||
+    combined.includes('sorsogon') ||
+    combined.includes('palawan') ||
+    combined.includes('laguna') ||
+    combined.includes('batangas') ||
+    combined.includes('pd 1096') ||
+    combined.includes('bp 344') ||
+    combined.includes('amihan') ||
+    combined.includes('habagat') ||
+    combined.includes('bahay na bato') ||
+    combined.includes('bahay kubo') ||
+    combined.includes('balay banwa') ||
+    combined.includes('tropical')
+  );
+
+  let styleCategory: DetectedArchitecturalContext['styleCategory'] = 'contemporary';
+  let styleName = 'Contemporary Architecture';
+
+  if (combined.includes('cyberpunk') || combined.includes('blade runner') || combined.includes('neo-tokyo') || combined.includes('sci-fi')) {
+    if (combined.includes('brutalis') || combined.includes('neo-brutalis')) {
+      styleCategory = 'neo-brutalist';
+      styleName = 'Neo-Brutalist Cyberpunk';
+    } else {
+      styleCategory = 'cyberpunk';
+      styleName = 'High-Tech Cyberpunk';
+    }
+  } else if (combined.includes('neo-brutalis')) {
+    styleCategory = 'neo-brutalist';
+    styleName = 'Neo-Brutalist';
+  } else if (combined.includes('brutalis') || combined.includes('beton brut') || combined.includes('raw concrete') || combined.includes('monolithic concrete')) {
+    styleCategory = 'brutalist';
+    styleName = 'Brutalist Monolithic';
+  } else if (combined.includes('wabi-sabi') || combined.includes('wabi sabi') || combined.includes('japandi')) {
+    styleCategory = 'minimalist';
+    styleName = 'Wabi-Sabi Minimalist';
+  } else if (combined.includes('minimalis') || combined.includes('zen') || combined.includes('pure volume') || combined.includes('bauhaus')) {
+    styleCategory = 'minimalist';
+    styleName = 'Refined Minimalist';
+  } else if (combined.includes('parametric') || combined.includes('zaha') || combined.includes('curvilinear') || combined.includes('deconstructivi')) {
+    styleCategory = 'parametric';
+    styleName = 'Parametric & Computational Fluid';
+  } else if (combined.includes('industrial') || combined.includes('warehouse') || combined.includes('loft') || combined.includes('corten')) {
+    styleCategory = 'industrial';
+    styleName = 'Industrial & Adaptive Modern';
+  } else if (combined.includes('scandinavian') || combined.includes('nordic') || combined.includes('alpine') || combined.includes('chalet') || combined.includes('sauna')) {
+    styleCategory = 'scandinavian';
+    styleName = 'Nordic & Scandinavian Timber';
+  } else if (combined.includes('gothic') || combined.includes('neo-gothic')) {
+    styleCategory = 'gothic';
+    styleName = 'Gothic Architectural';
+  } else if (combined.includes('classical') || combined.includes('neoclassical') || combined.includes('greek revival') || combined.includes('palladian') || combined.includes('baroque')) {
+    styleCategory = 'classical';
+    styleName = 'Classical & Neoclassical';
+  } else if (combined.includes('art deco') || combined.includes('streamline moderne')) {
+    styleCategory = 'art-deco';
+    styleName = 'Art Deco';
+  } else if (combined.includes('mid-century') || combined.includes('desert modern') || combined.includes('palm springs')) {
+    styleCategory = 'mid-century';
+    styleName = 'Mid-Century Desert Modern';
+  } else if (combined.includes('mediterranean') || combined.includes('spanish colonial') || combined.includes('hacienda') || combined.includes('adobe') || combined.includes('pueblo')) {
+    styleCategory = 'mediterranean';
+    styleName = 'Mediterranean Modern';
+  } else if (combined.includes('bahay na bato') || combined.includes('bahay kubo') || combined.includes('ivatan') || combined.includes('torogan') || combined.includes('maranao')) {
+    styleCategory = 'philippine-vernacular';
+    styleName = 'Philippine Vernacular Modern';
+  } else if (isTropicalOrPhilippine) {
+    styleCategory = 'tropical-modern';
+    styleName = 'Modern Tropical Bioclimatic';
+  }
+
+  // Detect Typology
+  let typologyCategory: DetectedArchitecturalContext['typologyCategory'] = 'general';
+  let typologyName = 'Architectural Complex';
+
+  if (combined.includes('arena') || combined.includes('stadium') || combined.includes('coliseum') || combined.includes('sports complex')) {
+    typologyCategory = 'arena';
+    typologyName = 'Sports & Entertainment Arena';
+  } else if (combined.includes('city hall') || combined.includes('municipal hall') || combined.includes('civic center') || combined.includes('capitol') || combined.includes('courthouse') || combined.includes('banwa')) {
+    typologyCategory = 'civic';
+    typologyName = 'Civic Municipal Hall';
+  } else if (combined.includes('house') || combined.includes('villa') || combined.includes('residence') || combined.includes('mansion') || combined.includes('dwelling') || combined.includes('cabin') || combined.includes('apartment') || combined.includes('condo')) {
+    typologyCategory = 'residential';
+    typologyName = 'Residential Architecture';
+  } else if (combined.includes('museum') || combined.includes('gallery') || combined.includes('pavilion') || combined.includes('theater') || combined.includes('auditorium') || combined.includes('library') || combined.includes('cultural center')) {
+    typologyCategory = 'cultural';
+    typologyName = 'Cultural & Exhibition Center';
+  } else if (combined.includes('mall') || combined.includes('retail') || combined.includes('commercial') || combined.includes('office tower') || combined.includes('corporate') || combined.includes('skyscraper') || combined.includes('mixed-use')) {
+    typologyCategory = 'commercial';
+    typologyName = 'Commercial & Mixed-Use Complex';
+  } else if (combined.includes('school') || combined.includes('university') || combined.includes('college') || combined.includes('campus') || combined.includes('academy')) {
+    typologyCategory = 'educational';
+    typologyName = 'Educational & Campus Facility';
+  } else if (combined.includes('hospital') || combined.includes('clinic') || combined.includes('health center') || combined.includes('medical') || combined.includes('evacuation center')) {
+    typologyCategory = 'healthcare';
+    typologyName = 'Healthcare & Community Resilience Facility';
+  } else if (combined.includes('hotel') || combined.includes('resort') || combined.includes('ecolodge') || combined.includes('hostel')) {
+    typologyCategory = 'hospitality';
+    typologyName = 'Hospitality & Resort Destination';
+  } else if (combined.includes('church') || combined.includes('cathedral') || combined.includes('chapel') || combined.includes('mosque') || combined.includes('temple') || combined.includes('sanctuary')) {
+    typologyCategory = 'religious';
+    typologyName = 'Sacred & Religious Architecture';
+  }
+
+  // Detect Materials
+  const detectedMaterials: string[] = [];
+  const materialKeywords = [
+    { word: 'obsidian', label: 'Matte-Black Obsidian Stone Slabs' },
+    { word: 'charcoal concrete', label: 'Dark Charcoal Architectural Concrete' },
+    { word: 'concrete', label: 'Board-Formed Architectural Concrete' },
+    { word: 'corten', label: 'Weathered Corten Steel' },
+    { word: 'weathered steel', label: 'Weathered Corten Steel' },
+    { word: 'steel', label: 'Structural Steel Beams' },
+    { word: 'zinc', label: 'Standing-Seam Titanium-Zinc' },
+    { word: 'titanium', label: 'Titanium Composite Envelope' },
+    { word: 'teak', label: 'Seasoned Teak Timber Louvers' },
+    { word: 'narra', label: 'Philippine Narra Hardwood' },
+    { word: 'bamboo', label: 'Engineered Structural Bamboo' },
+    { word: 'larch', label: 'Siberian Larch Timber Cladding' },
+    { word: 'pine', label: 'Kiln-Dried Pale Pine' },
+    { word: 'wood', label: 'Warm Architectural Timber Slats' },
+    { word: 'timber', label: 'Architectural Timber Glulam' },
+    { word: 'travertine', label: 'Honed Travertine Stone' },
+    { word: 'limestone', label: 'Cut Limestone Masonry' },
+    { word: 'granite', label: 'Flame-Finished Flamed Granite' },
+    { word: 'marble', label: 'Polished Architectural Marble' },
+    { word: 'rammed earth', label: 'Compacted Rammed Earth' },
+    { word: 'adobe', label: 'Monolithic Adobe Stucco' },
+    { word: 'terracotta', label: 'Extruded Terracotta Rainscreen' },
+    { word: 'brick', label: 'Wirecut Kiln-Fired Brick' },
+    { word: 'microcement', label: 'Seamless Architectural Microcement' },
+    { word: 'low-e glass', label: 'High-Performance Low-E Glazing' },
+    { word: 'electrochromic', label: 'Anti-Glare Electrochromic Solar Glass' },
+    { word: 'fluted glass', label: 'Translucent Fluted Cast Glass' },
+    { word: 'glass', label: 'Floor-to-Ceiling Low-Iron Glass' },
+    { word: 'neon', label: 'Integrated Neon Crimson & Cyan LED Conduits' },
+    { word: 'aluminum', label: 'Anodized Architectural Aluminum' },
+    { word: 'carbon fiber', label: 'High-Tensile Carbon Fiber Shell' },
+    { word: 'brass', label: 'Patinated Architectural Brass' },
+  ];
+
+  for (const item of materialKeywords) {
+    if (combined.includes(item.word) && !detectedMaterials.includes(item.label)) {
+      detectedMaterials.push(item.label);
+    }
+  }
+
+  // Detect Atmosphere & Lighting
+  const detectedAtmosphere: string[] = [];
+  if (combined.includes('downpour') || combined.includes('rain')) detectedAtmosphere.push('Atmospheric torrential downpour with rain droplets grazing the envelope');
+  if (combined.includes('neon') || combined.includes('cyan') || combined.includes('crimson')) detectedAtmosphere.push('Vibrant neon crimson and electric cyan directional illumination');
+  if (combined.includes('fog') || combined.includes('mist') || combined.includes('haze') || combined.includes('volumetric')) detectedAtmosphere.push('Volumetric atmospheric fog and layered depth');
+  if (combined.includes('night') || combined.includes('nocturnal')) detectedAtmosphere.push('Nocturnal darkness with dramatic high-contrast architectural uplighting');
+  if (combined.includes('golden hour') || combined.includes('sunset')) detectedAtmosphere.push('Warm late-afternoon golden hour sunlight (3200K) with long soft shadows');
+  if (combined.includes('blue hour') || combined.includes('dusk') || combined.includes('twilight')) detectedAtmosphere.push('Dusk twilight blue-hour with cobalt sky and glowing interior warmth');
+  if (combined.includes('overcast') || combined.includes('diffuse')) detectedAtmosphere.push('Soft diffuse overcast sky with gentle ambient occlusion shadows');
+
+  // Detect Camera
+  const detectedCamera: string[] = [];
+  if (combined.includes('14mm') || combined.includes("worm's-eye") || combined.includes("worm's eye") || combined.includes('low-angle')) {
+    detectedCamera.push("14mm ultra-wide lens from an extreme low worm's-eye angle looking dramatically up");
+  } else if (combined.includes('aerial') || combined.includes('drone') || combined.includes("bird's-eye")) {
+    detectedCamera.push('Elevated 45-degree oblique drone perspective showing full roofscape and site perimeter');
+  } else if (combined.includes('elevation')) {
+    detectedCamera.push('Direct frontal orthographic elevation with plumb vertical alignment');
+  } else {
+    detectedCamera.push('24mm tilt-shift lens from human eye-level (1.6m) with zero keystoning');
+  }
+
+  // Location hint
+  let locationHint = 'Contemporary Urban Context';
+  if (combined.includes('sorsogon')) locationHint = 'Sorsogon City, Bicol, Philippines';
+  else if (combined.includes('iloilo')) locationHint = 'Iloilo City, Panay, Philippines';
+  else if (combined.includes('cebu')) locationHint = 'Cebu City, Central Visayas, Philippines';
+  else if (combined.includes('davao')) locationHint = 'Davao City, Mindanao, Philippines';
+  else if (combined.includes('palawan')) locationHint = 'Palawan Coastal Biosphere, Philippines';
+  else if (combined.includes('manila')) locationHint = 'Metro Manila Urban Fabric, Philippines';
+  else if (isTropicalOrPhilippine) locationHint = 'Tropical Climate Zone, Philippines';
+  else if (styleCategory === 'cyberpunk' || styleCategory === 'neo-brutalist') locationHint = 'Dense Futuristic Metropolis';
+  else if (styleCategory === 'scandinavian') locationHint = 'Nordic Alpine Landscape';
+  else if (styleCategory === 'mid-century') locationHint = 'Desert Modern Topography';
+
+  return {
+    styleName,
+    styleCategory,
+    typologyName,
+    typologyCategory,
+    detectedMaterials,
+    detectedAtmosphere,
+    detectedCamera,
+    isTropicalOrPhilippine,
+    locationHint,
+  };
+}
+
+/**
+ * Intelligent dynamic architectural specification synthesizer.
+ * Analyzes the user's brief, typology, aesthetic style, materials, and camera requirements
+ * to construct a fully authentic architectural dossier and photorealistic render prompt.
+ * ZERO HOMOGENIZATION: Does NOT force tropical elements on non-tropical designs.
+ */
+export function synthesizeDynamicArchitecturalSpec({
+  prompt,
+  fileItem,
+  visualStyle = 'photography',
+  viewType = 'hero-perspective',
+  aspectRatio = '16:9',
+}: {
+  prompt: string;
+  fileItem?: UploadedFileItem;
+  visualStyle?: ArchitecturalVisualStyle;
+  viewType?: ArchitecturalCameraView;
+  aspectRatio?: '16:9' | '4:3' | '1:1';
+}): {
+  conceptStatement: string;
+  materialPalette: { material: string; application: string; rationale: string }[];
+  environmentalAnalysis: { solarOrientation: string; windChanneling: string; stormWaterStrategy: string };
+  buildingCodeNotes: string[];
+  jurorDefenseTips: { question: string; suggestedAnswer: string }[];
+  architecturalSpec: ArchitecturalDesignSpecification;
+  photorealisticPrompt: string;
+  enhancedPrompt: string;
+} {
+  const ctx = detectArchitecturalContext(prompt, fileItem);
+  const lower = prompt.toLowerCase();
+
+  // Concept statement
+  let conceptStatement = `This ${ctx.styleName} proposal translates the functional requirements of a ${ctx.typologyName} into a commanding architectural presence. The design balances bold tectonic clarity with nuanced contextual articulation, establishing a distinct spatial identity.`;
+  if (ctx.styleCategory === 'cyberpunk' || ctx.styleCategory === 'neo-brutalist') {
+    conceptStatement = `The ${ctx.styleName} ${ctx.typologyName} redefines monumental scale through an imposing dialogue of monolithic dark massing and vibrant directional light conduits. The structure channels spectator and occupant circulation through high-capacity concourses engineered for severe weather resilience and high-impact nighttime visibility.`;
+  } else if (ctx.styleCategory === 'brutalist') {
+    conceptStatement = `Celebrated through the honest weight of unadorned structural mass, this ${ctx.styleName} design articulates sculptural concrete cantilevers, deep shadow reveals, and rhythmic structural apertures, establishing an enduring monument to civic and programmatic permanency.`;
+  } else if (ctx.styleCategory === 'minimalist') {
+    conceptStatement = `Conceived as a study in spatial serenity and material restraint, this ${ctx.styleName} proposal eliminates ornamental excess in favor of refined proportions, continuous shadow reveals, and a seamless transition between interior living volumes and outdoor nature.`;
+  } else if (ctx.styleCategory === 'scandinavian') {
+    conceptStatement = `Rooted in Nordic timbercraft and climatic honesty, this ${ctx.styleName} design synthesizes natural timber cladding, steep snow-shedding roof planes, and panoramic high-performance glazing that harmonizes with the surrounding landscape.`;
+  } else if (ctx.styleCategory === 'parametric') {
+    conceptStatement = `Employing fluid computational geometry and continuous aerodynamic envelopes, this ${ctx.styleName} structure demonstrates structural biomimicry, optimizing daylight penetration and structural loads through algorithmic facade articulation.`;
+  } else if (ctx.isTropicalOrPhilippine) {
+    conceptStatement = `Harmonizing contemporary tectonic clarity with vernacular Philippine bioclimatic principles, this ${ctx.styleName} design integrates deep 3.0m cantilevered roof overhangs, lifted pilotis for continuous cross-ventilation, and warm timber brise-soleil screening.`;
+  }
+
+  // Material palette
+  let materialPalette: { material: string; application: string; rationale: string }[] = [];
+  if (ctx.styleCategory === 'cyberpunk' || ctx.styleCategory === 'neo-brutalist') {
+    materialPalette = [
+      {
+        material: ctx.detectedMaterials.find(m => m.includes('Obsidian')) || 'Matte-Black Obsidian Stone Slabs',
+        application: 'Primary exterior rainscreen facade panels',
+        rationale: 'High-density weather-resistant cladding with light-absorbing matte finish preventing unwanted specular glare.',
+      },
+      {
+        material: ctx.detectedMaterials.find(m => m.includes('Charcoal')) || 'Dark Charcoal Architectural Concrete',
+        application: 'Structural shear walls and monolithic foundation pylons',
+        rationale: 'High compressive load capacity providing brutalist textural permanence and seismic stability.',
+      },
+      {
+        material: ctx.detectedMaterials.find(m => m.includes('Neon') || m.includes('LED')) || 'Integrated Neon Crimson & Cyan LED Conduits',
+        application: 'Recessed reveals along facade joints and circulation portals',
+        rationale: 'Waterproof exterior illumination providing high-impact wayfinding and iconic nighttime silhouette.',
+      },
+      {
+        material: ctx.detectedMaterials.find(m => m.includes('Glass') || m.includes('Electrochromic')) || 'Anti-Glare Electrochromic Solar Glazing',
+        application: 'Main concourse curtain walls and sky-tier viewing portals',
+        rationale: 'Electronically tunable visual light transmittance for heat gain rejection and specular storm reflections.',
+      },
+    ];
+  } else if (ctx.styleCategory === 'brutalist') {
+    materialPalette = [
+      { material: 'Monolithic Board-Formed Beton Brut', application: 'Exterior structural bearing walls and cantilevers', rationale: 'Exposes authentic grain of timber formwork; high thermal mass buffers thermal fluctuations.' },
+      { material: 'Bush-Hammered Aggregate Concrete', application: 'Ground-level plinth and stepped podium', rationale: 'Textural tactile contrast anchoring the building securely to the earth.' },
+      { material: 'Dark Anodized Architectural Aluminum', application: 'Deeply recessed window mullions and copings', rationale: 'Corrosion-resistant framing with matte finish accentuating deep shadow reveals.' },
+      { material: 'Low-Iron Clear Acoustic Glazing', application: 'Recessed facade fenestrations', rationale: 'Maintains daylight clarity without color tinting, shielded from direct sun by concrete reveals.' },
+    ];
+  } else if (ctx.styleCategory === 'minimalist') {
+    materialPalette = [
+      { material: 'Seamless Architectural Microcement', application: 'Continuous exterior wall planes and soffits', rationale: 'Monolithic joint-free finish reflecting ambient light with subtle mineral texture.' },
+      { material: 'Ultra-Clear Low-E Insulated Glazing', application: 'Floor-to-ceiling frameless pocket sliding glass walls', rationale: 'Blurs boundaries between inside and outside while maintaining strict U-value thermal efficiency.' },
+      { material: 'Honed Basalt or Limestone Pavers', application: 'Terrace and interior floor transitions', rationale: 'Consistent natural stone materiality running from interior living to exterior courtyard.' },
+      { material: 'Brushed Dark Stainless Steel', application: 'Concealed window tracks and minimalist hardware', rationale: 'Ultra-thin profiles ensuring maximum visual transparency.' },
+    ];
+  } else if (ctx.styleCategory === 'scandinavian') {
+    materialPalette = [
+      { material: 'Kiln-Dried Siberian Larch Timber Siding', application: 'Exterior rainscreen cladding and soffits', rationale: 'Naturally weather-resistant resin-rich timber that patinas into a silvery tone over time.' },
+      { material: 'Matte Charcoal Standing-Seam Zinc', application: 'Steeply pitched gable roof and vertical accents', rationale: 'Zero-maintenance material capable of self-healing minor scratches and shedding snow.' },
+      { material: 'White-Washed Brick Masonry', application: 'Interior structural chimney core and base walls', rationale: 'Provides radiant thermal mass heating during cold sub-zero nights.' },
+      { material: 'Triple-Glazed Argon Low-E Wood Windows', application: 'Panoramic landscape aperture frames', rationale: 'Provides maximum thermal barrier against sub-zero winter temperatures.' },
+    ];
+  } else if (ctx.isTropicalOrPhilippine) {
+    materialPalette = [
+      { material: 'Board-Formed Architectural Concrete', application: 'Structural cores and shear walls', rationale: 'High thermal mass dampens midday tropical heat; withstands typhoons and seismic forces.' },
+      { material: 'Seasoned Teak / Narra Timber Brise-Soleil', application: 'Upper facade operable louvers', rationale: 'Filters high-angle solar glare while permitting continuous cross-ventilation breezes.' },
+      { material: 'Double-Glazed Low-E Solar Acoustic Glass', application: 'Public concourse curtain walls', rationale: 'Maximizes natural daylighting without excessive Solar Heat Gain Coefficient.' },
+      { material: 'Permeable Travertine Stone Pavers', application: 'Civic pedestrian plaza', rationale: 'Prevents urban heat island effect and promotes rapid stormwater aquifer infiltration.' },
+    ];
+  } else {
+    materialPalette = [
+      { material: 'Architectural UHPC Panels', application: 'Primary exterior rainscreen envelope', rationale: 'High-strength, lightweight panels engineered for durability and precise joint alignments.' },
+      { material: 'High-Performance Insulated Solar Glazing', application: 'Curtain walls and perimeter fenestrations', rationale: 'Balances natural daylight penetration with optimal solar heat gain coefficients.' },
+      { material: 'Dark Anodized Structural Aluminum', application: 'Facade mullions, louvers, and copings', rationale: 'Durable, corrosion-resistant framing with crisp modern architectural profiles.' },
+      { material: 'Honed Architectural Stone Pavers', application: 'Entrance concourse and landscape plazas', rationale: 'High slip resistance and enduring aesthetic quality under heavy pedestrian circulation.' },
+    ];
+  }
+
+  // Environmental analysis
+  let environmentalAnalysis = {
+    solarOrientation: 'Envelope articulation tuned to solar path, utilizing passive shading to mitigate peak cooling loads.',
+    windChanneling: 'Building massing configured to promote natural convective airflow and minimize pedestrian-level wind turbulence.',
+    stormWaterStrategy: 'Sustainable urban drainage integrating retention basins, permeable paving, and channeled runoff control.',
+  };
+  if (ctx.styleCategory === 'cyberpunk' || ctx.styleCategory === 'neo-brutalist') {
+    environmentalAnalysis = {
+      solarOrientation: 'Electrochromic dynamic glass and micro-perforated exterior panels mitigate urban heat island reflections onto surrounding transit arteries.',
+      windChanneling: 'Aerodynamic angular massing deflects high-velocity urban street canyon winds around pedestrian entry portals.',
+      stormWaterStrategy: 'High-capacity siphonic drainage channels and subterranean detention cisterns engineered for catastrophic cloudburst downpours.',
+    };
+  } else if (ctx.styleCategory === 'scandinavian') {
+    environmentalAnalysis = {
+      solarOrientation: 'Southern aperture maximization captures low-angle winter sunlight for passive solar thermal heating.',
+      windChanneling: 'Tapered windward roof slope deflects prevailing sub-zero winter winds over the sheltered building envelope.',
+      stormWaterStrategy: 'Steep roof pitches ensure rapid snow shedding into freeze-protected concealed meltwater gutters.',
+    };
+  } else if (ctx.isTropicalOrPhilippine) {
+    environmentalAnalysis = {
+      solarOrientation: 'Longitudinal East-West building axis limits direct solar radiation; deep 3.0m eaves shade vertical glazing.',
+      windChanneling: 'Lifted ground-floor pilotis channel prevailing Amihan (Northeast) and Habagat (Southwest) monsoons through open breezeways.',
+      stormWaterStrategy: 'Cantilevered roof overhangs shed torrential monsoon rains into integrated bioretention swales and cisterns.',
+    };
+  }
+
+  // Building code notes
+  let buildingCodeNotes: string[] = [];
+  if (ctx.isTropicalOrPhilippine) {
+    buildingCodeNotes = [
+      'PD 1096 Sec. 704 & 708: Complies with allowable Total Open Space within Lot (TOSL) and required setback clearances.',
+      'BP 344 Rule II: Full universal accessibility ramp gradients (1:12), tactile paving, and entrance clearances.',
+      'RA 9514 (Fire Code): Dual remote smoke-proof enclosed egress stair towers with positive pressure ventilation.',
+    ];
+  } else if (ctx.typologyCategory === 'arena') {
+    buildingCodeNotes = [
+      'Life Safety & Assembly Egress (IBC Chapter 10 / NFPA 101): High-throughput egress portals sized for rapid arena evacuation with minimum 1.2m clear width per 250 occupants.',
+      'Structural & Seismic Resilience (ASCE 7): Long-span structural steel diagrid with mass-tuned dampers mitigating dynamic spectator harmonic resonance.',
+      'Universal Accessibility (ADA / Universal Design): Seamless barrier-free sightlines across all seating tiers with tactile guidance paths.',
+    ];
+  } else {
+    buildingCodeNotes = [
+      'Building Height & Zoning Envelope: Conforms to local floor-area ratio (FAR) limitations, sky-exposure planes, and required setback envelopes.',
+      'Universal Accessibility: Level zero-step thresholds across all main entrances, universal accessible restrooms, and tactile guidance.',
+      'Life Safety & Fire Protection: 2-hour fire-rated structural assemblies with pressurized dual exit enclosures and automated sprinkler integration.',
+    ];
+  }
+
+  // Juror defense tips
+  let jurorDefenseTips: { question: string; suggestedAnswer: string }[] = [];
+  if (ctx.typologyCategory === 'arena' || ctx.styleCategory === 'cyberpunk' || ctx.styleCategory === 'neo-brutalist') {
+    jurorDefenseTips = [
+      {
+        question: 'How does your massive monolithic facade prevent oppressive street-level scale for pedestrians?',
+        suggestedAnswer: 'By carving human-scale pedestrian colonnades into the ground plane and illuminating circulation reveals with warm directional lighting, the building feels permeable and welcoming at eye level while retaining monumental civic presence above.',
+      },
+      {
+        question: 'How do you mitigate acoustic reverberation and crowd noise in an enclosed venue of this scale?',
+        suggestedAnswer: 'Acoustic baffle panels integrated behind perforated interior wall claddings absorb mid-to-high frequencies, while sound-dampening ceiling clouds prevent flutter echoes and keep speech intelligibility high.',
+      },
+    ];
+  } else if (ctx.isTropicalOrPhilippine) {
+    jurorDefenseTips = [
+      {
+        question: 'How did you justify your ramp length under BP 344?',
+        suggestedAnswer: 'We maintained a strict 1:12 slope with 1.5m level rest landings every 6.0m of run, ensuring full universal accessibility without impeding pedestrian flow.',
+      },
+      {
+        question: 'How does your design address excessive heat gain in glass curtain walls?',
+        suggestedAnswer: 'Major glazing faces strictly North, shielded by deep horizontal overhangs and Low-E solar coatings to prevent heat entrapment while maximizing natural daylight.',
+      },
+    ];
+  } else {
+    jurorDefenseTips = [
+      {
+        question: 'How does the material palette balance aesthetic vision with lifecycle maintenance?',
+        suggestedAnswer: 'Primary surfaces utilize self-weathering, high-durability materials with factory-applied protective silane treatments, significantly lowering long-term maintenance costs.',
+      },
+      {
+        question: 'How does the building envelope perform under extreme weather events?',
+        suggestedAnswer: 'The multi-layer pressure-equalized rainscreen system separates weather protection from thermal insulation, preventing water infiltration while ensuring continuous envelope breathability.',
+      },
+    ];
+  }
+
+  // Construct Photorealistic Prompt
+  // 1. Camera & View sentence
+  let cameraDir = 'Captured with an architectural 24mm tilt-shift lens from human eye-level (1.6m). Vertical columns, mullions, and wall edges are strictly plumb and straight with zero keystoning convergence.';
+  if (lower.includes('14mm') || lower.includes("worm's-eye") || lower.includes("worm's eye") || lower.includes('low-angle')) {
+    cameraDir = "Captured with a 14mm ultra-wide architectural lens from an extreme low worm's-eye angle looking dramatically up at the towering facade. Vertical architectural lines remain strictly plumb with heroic upward scale and zero keystoning distortion.";
+  } else if (viewType === 'aerial-drone' || lower.includes('drone') || lower.includes('aerial')) {
+    cameraDir = 'Captured with a high-resolution drone camera at an elevated 45-degree oblique architectural perspective showing roofscape, perimeter geometry, and urban integration.';
+  } else if (viewType === 'front-elevation' || lower.includes('elevation')) {
+    cameraDir = 'Captured in a perfectly symmetrical direct front elevation projection, orthographic alignment, zero perspective convergence.';
+  } else if (viewType === 'facade-detail' || lower.includes('detail') || lower.includes('close-up')) {
+    cameraDir = 'Close-up macro architectural detail shot focusing on tectonic facade joints, material textures, and precise connection details.';
+  }
+
+  // 2. Atmosphere & Lighting sentence
+  let lightingDir = 'Warm late-afternoon golden hour sunlight at 5:00 PM casting soft, elongated 45-degree diagonal shadows across facade planes with warm interior illumination visibly glowing through transparent glazing.';
+  if (lower.includes('neon') || lower.includes('downpour') || lower.includes('cyberpunk') || lower.includes('rain')) {
+    lightingDir = 'Atmospheric nighttime downpour with fine rain droplets grazing the surface, subtle volumetric atmospheric mist, and vibrant neon crimson and electric cyan directional accents reflecting dynamically off wet reflective ground concourse.';
+  } else if (visualStyle === 'dusk-bluehour' || lower.includes('blue hour') || lower.includes('dusk') || lower.includes('night')) {
+    lightingDir = 'Dramatic dusk twilight blue-hour illumination with deep cobalt sky, glowing interior light pools, and precise exterior architectural uplighting.';
+  } else if (visualStyle === 'overcast' || lower.includes('overcast') || lower.includes('diffuse')) {
+    lightingDir = 'Soft diffuse overcast daylight with gentle ambient occlusion shadows, highlighting subtle material textural variations without harsh glare.';
+  }
+
+  // 3. Materials summary
+  const matSummary = materialPalette.map(m => m.material).join(', ');
+
+  // 4. Landscape / Entourage
+  let siteAndLandscape = 'Permeable landscaped pedestrian plaza, native shade trees, integrated linear bioswales, and human scale figures.';
+  if (ctx.styleCategory === 'cyberpunk' || ctx.styleCategory === 'neo-brutalist') {
+    siteAndLandscape = 'Slick wet reflective dark asphalt, brushed dark steel bollards, subterranean drainage grates, and pedestrian skywalks with subtle atmospheric mist.';
+  } else if (ctx.styleCategory === 'brutalist') {
+    siteAndLandscape = 'Monolithic geometric concrete steps, crushed dark aggregate gravel plaza, architectural reflecting pool, and minimalist architectural accents.';
+  } else if (ctx.styleCategory === 'scandinavian') {
+    siteAndLandscape = 'Native evergreen pine woodland, natural granite bedrock outcroppings, wild alpine grasses, and a timber boardwalk.';
+  } else if (ctx.styleCategory === 'minimalist') {
+    siteAndLandscape = 'Raked gravel courtyard, solitary sculptural pine, honed stone stepping paths, and a quiet reflecting water basin.';
+  } else if (ctx.isTropicalOrPhilippine) {
+    siteAndLandscape = 'Permeable travertine civic plaza, native Narra shade trees, mature coconut palms (Cocos nucifera), rain garden bioswales, and lush tropical foliage.';
+  }
+
+  // 5. Build full photorealistic prompt
+  const cleanLandscape = siteAndLandscape.replace(/\.+$/, '');
+  const photorealisticPrompt = `Photorealistic architectural photograph of a ${ctx.styleName} ${ctx.typologyName}. ${cameraDir} The building showcases expressive form and massing featuring ${matSummary}. ${lightingDir} Setting and landscape: ${cleanLandscape}. Masterpiece architectural visualization plate (${aspectRatio} format), ArchDaily and Dezeen editorial publication standard, 8k resolution, physically based rendering (PBR), shot on Hasselblad H6D-100c with pristine textural clarity and razor-sharp focus throughout.`;
+
+  const architecturalSpec: ArchitecturalDesignSpecification = {
+    projectType: `${ctx.styleName} ${ctx.typologyName}`,
+    buildingLocation: ctx.locationHint,
+    climateAndBiome: ctx.isTropicalOrPhilippine ? 'Tropical wet monsoon' : (ctx.styleCategory === 'scandinavian' ? 'Sub-zero alpine' : 'Urban temperate climate zone'),
+    floorsAndScale: ctx.typologyCategory === 'arena' ? 'Monumental 4-tier assembly scale' : '2-3 storeys with expansive double-height concourse',
+    formAndMassing: `${ctx.styleName} volumetric composition with articulated structural bays and expressive cantilevered volumes`,
+    facadeComposition: `Multi-layer facade engineered with ${materialPalette[0]?.material || 'cladding'} and ${materialPalette[1]?.material || 'structural framing'}`,
+    roofDesign: ctx.isTropicalOrPhilippine ? 'Deep cantilevered 3.0m eaves with concealed rainwater gutters' : 'Sculptural architectural roof envelope with integrated drainage channels',
+    fenestrationAndGlazing: materialPalette[3]?.material || 'Low-E solar control insulated curtain wall glazing',
+    materialSchedule: matSummary,
+    siteAndLandscape,
+    lightingAndAtmosphere: lightingDir,
+    cameraComposition: cameraDir,
+    preservedReferenceElements: [ctx.styleName, ctx.typologyName],
+    refinedDesignElements: materialPalette.map(m => m.material),
+    photorealisticPrompt,
+    negativeConstraints: 'cartoon, flat vector illustration, low poly, 3D CAD clay model, wireframe, plastic materials, watermarks, deformed geometry',
+  };
+
+  return {
+    conceptStatement,
+    materialPalette,
+    environmentalAnalysis,
+    buildingCodeNotes,
+    jurorDefenseTips,
+    architecturalSpec,
+    photorealisticPrompt,
+    enhancedPrompt: photorealisticPrompt,
+  };
+}
+
+/**
  * Stage 1: Gemini Deep Multimodal Architectural Analysis & Specification Synthesis
  * Analyzes the user brief and any attached presentation boards, site plans, sketches, or PDFs.
- * Extracts the central building concept, roof structure, massing, facade, materials, and tropical context,
+ * Extracts the central building concept, roof structure, massing, facade, materials, and climate context,
  * and synthesizes the presentation dossier + the hyper-detailed photorealistic rendering prompt.
+ * ZERO HOMOGENIZATION: Strictly adheres to the user's specific architectural style and materials.
  */
 export async function synthesizeArchitecturalSpecification({
   apiKey,
@@ -1422,66 +1954,75 @@ export async function synthesizeArchitecturalSpecification({
   enhancedPrompt: string;
 }> {
   const chosenModel = reasoningModel || getStoredGeminiModel() || 'gemini-3.8-flash';
+  const dynamicFallback = synthesizeDynamicArchitecturalSpec({
+    prompt,
+    fileItem,
+    visualStyle,
+    viewType,
+    aspectRatio,
+  });
 
-  const systemInstruction = `You are a distinguished Architectural Visualization Director and PRC Board of Architecture Examiner in the Philippines.
-You specialize in translating rough briefs, sketches, and architectural presentation boards (like "BALAY BANWA", Sorsogon City Hall, Bicolano civic concepts) into world-class architectural designs and hyper-detailed photorealistic rendering specifications suitable for ArchDaily publication or V-Ray/Unreal Engine 5 architectural CGI.`;
+  const systemInstruction = `You are a world-class Architectural Visualization Director and PRC Board of Architecture design examiner.
+You specialize in translating briefs, sketches, and reference boards into publication-grade architectural designs and hyper-detailed photorealistic rendering specifications suitable for ArchDaily publication or V-Ray/Unreal Engine 5 architectural CGI.
 
-  const instruction = `The student is designing an architectural project:
+CRITICAL ARCHITECTURAL DIRECTIVE — STYLE FIDELITY (ZERO HOMOGENIZATION):
+1. Strictly adopt and respect the specific architectural style requested by the user or shown on the reference board (e.g. Cyberpunk, Brutalist, Neo-Brutalist, Minimalist, Deconstructivist, Gothic, Classical, Scandinavian, Industrial, Parametric, Art Deco, Tropical Modern, Vernacular).
+2. NEVER force every building into a tropical modern style or civic municipal hall. If the user asks for a Cyberpunk Arena, a Brutalist Library, an Alpine Chalet, or a Minimalist Desert House, design THAT specific architecture with its distinctive materiality, lighting, and environmental response.
+3. If and only if the user specifies a Philippine or tropical context (e.g. Sorsogon, Bicol, Manila, Cebu, PD 1096, BP 344, tropical, Amihan/Habagat), incorporate Philippine bioclimatic principles. For other international or sci-fi contexts, provide the corresponding structural, life-safety, and environmental response for that typology.
+4. The synthesized "photorealisticPrompt" MUST explicitly capture the user's requested style, exact materials, atmospheric mood, lighting, and camera perspective with uncompromising fidelity.`;
+
+  const instruction = `The designer is proposing an architectural project:
 "${prompt}"
 
-Deliverable Request: Photorealistic Architectural Visualization Plate (${aspectRatio}, ${visualStyle}, ${viewType})
+Deliverable Request: Photorealistic Architectural Visualization Plate (${aspectRatio}, visual style: ${visualStyle}, camera view: ${viewType})
 Attached Reference Material: ${fileItem ? `"${fileItem.name}" (${fileItem.mimeType})` : 'None'}
 
-CRITICAL MULTIMODAL INSTRUCTION FOR ARCHITECTURAL PRESENTATION BOARDS & SKETCHES:
-1. The attached image may be an architectural presentation board containing title blocks (e.g., "BALAY BANWA", Revitalized Municipal Hall of Sorsogon City), site analysis diagrams, axonometric massing diagrams, and cultural/biomimetic narratives.
-2. Read and extract all key concepts from the board:
-   - Specific project name, location, and cultural identity.
-   - Biomimetic inspiration (e.g. Butanding / Whale shark sweeping aerodynamic canopy, lifted administrative volume, 100% permeable public ground plane, shaded Silang/Tabuan concourse).
-   - Envelope articulation (e.g. UHPC double-skin sunscreen with dactylogram dot-and-stripe apertures, operable branchial gill louvers for sea-to-mountain cross-ventilation, central solar exhaust beacon).
-   - Tropical site strategies (stepped roof tiers, rainwater bioswales, retention cisterns, permeable stone civic plaza).
-3. If the user's prompt is "can you give me a better concept for this" or asks for improvements:
-   - PRESERVE the core identifying features, cultural narrative, and biomimetic roof canopy from the reference board.
-   - DRAMATICALLY ELEVATE the tectonic clarity, material realism, and spatial grandeur into a finished, publication-grade proposal.
-4. Synthesize a comprehensive JSON response matching this EXACT schema:
+MULTIMODAL INSTRUCTION FOR ARCHITECTURAL BRIEFS & REFERENCE BOARDS:
+1. If an image or presentation board is attached, carefully analyze its ACTUAL visual and programmatic content:
+   - Identify the specific project typology, style, massing geometry, structural system, and any text labels.
+   - Preserve identifying spatial, volumetric, or cultural design motifs shown in the reference.
+   - Elevate the tectonic clarity, material realism, and atmospheric rendering fidelity into a finished, publication-grade proposal.
+2. If no board is attached, synthesize the project directly from the user's brief with extreme fidelity to their chosen style, materials, and typology.
+3. Synthesize a comprehensive JSON response matching this EXACT schema:
 {
-  "conceptStatement": "3-4 sentence powerful architectural philosophy articulating the civic presence, spatial narrative, vernacular-modern balance, and biophilic identity.",
+  "conceptStatement": "3-4 sentence powerful architectural philosophy articulating the building identity, spatial narrative, tectonic expression, and contextual responsiveness.",
   "materialPalette": [
-    { "material": "Material Name", "application": "Exact location on building", "rationale": "Climate, seismic, or aesthetic rationale in the Philippines" },
+    { "material": "Material Name (e.g. Matte-Black Obsidian / Board-Formed Concrete / Siberian Larch)", "application": "Exact location on building", "rationale": "Structural, climatic, or aesthetic rationale" },
     { "material": "Material Name", "application": "Exact location", "rationale": "Rationale" },
     { "material": "Material Name", "application": "Exact location", "rationale": "Rationale" },
     { "material": "Material Name", "application": "Exact location", "rationale": "Rationale" }
   ],
   "environmentalAnalysis": {
-    "solarOrientation": "Technical solar shading strategy along the East-West axis with cantilevered overhangs.",
-    "windChanneling": "Aerodynamic channeling of Amihan (Northeast) & Habagat (Southwest) monsoon breezes.",
-    "stormWaterStrategy": "Monsoon stormwater resilience, retention basins, bioswales, and permeable paving."
+    "solarOrientation": "Technical solar shading or thermal envelope strategy tailored to the project's climate.",
+    "windChanneling": "Aerodynamic wind management, passive ventilation, or urban windbreak strategy.",
+    "stormWaterStrategy": "Stormwater management, drainage resilience, or snow/rain protection strategy."
   },
   "buildingCodeNotes": [
-    "PD 1096 Sec. 704 & 708: Specific setback, TOSL, and allowable building footprint note.",
-    "BP 344 Rule II: Full universal accessibility ramp gradients (1:12), tactile paving, and entrance clearances.",
-    "RA 9514 Fire Code: Emergency egress stairs, fire-rated assemblies, and fire truck access."
+    "Applicable building code / life safety / egress / universal accessibility note appropriate for this typology.",
+    "Structural or zoning standard note.",
+    "Fire separation or emergency accessibility note."
   ],
   "jurorDefenseTips": [
-    { "question": "Tough question a university professor or panel juror will ask?", "suggestedAnswer": "Strong, code-backed defense." },
-    { "question": "Tough structural or environmental question?", "suggestedAnswer": "Convincing architectural defense." }
+    { "question": "Tough question a university professor or panel juror will ask about this specific design?", "suggestedAnswer": "Strong, technically sound architectural defense." },
+    { "question": "Tough structural, material, or environmental question?", "suggestedAnswer": "Convincing defense." }
   ],
   "architecturalSpec": {
-    "projectType": "Civic Municipal Hall / Commercial / Residential",
-    "buildingLocation": "Sorsogon City / Bicol / Metro Manila, Philippines",
-    "climateAndBiome": "Tropical wet monsoon, typhoon-resilient coastal-upland threshold",
-    "floorsAndScale": "e.g. 2-3 storeys with double-height civic atrium",
-    "formAndMassing": "Sweeping aerodynamic roof canopy over lifted rectangular volume on slender columns",
-    "facadeComposition": "Perforated UHPC solar screen panels with dactylogram constellation apertures and vertical timber louvers",
-    "roofDesign": "Aerodynamic curved standing-seam titanium-zinc roof with deep 3m cantilevered eaves",
-    "fenestrationAndGlazing": "Floor-to-ceiling Low-E insulated glass curtain walls with brushed aluminum mullions",
-    "materialSchedule": "Board-formed architectural concrete, warm teak timber slats, UHPC panels, natural stone pavers",
-    "siteAndLandscape": "Permeable stone civic plaza, mature coconut palms (Cocos nucifera), native Narra shade trees, bioswales",
-    "lightingAndAtmosphere": "Warm late-afternoon golden hour sunlight at 5:00 PM, soft directional shadows, warm interior glow",
-    "cameraComposition": "Eye-level 1.6m two-point architectural perspective, 24mm tilt-shift lens, perfectly plumb vertical lines",
-    "preservedReferenceElements": ["Butanding whale shark roof canopy", "lifted volume on pilotis", "UHPC perforated screen"],
-    "refinedDesignElements": ["Enhanced structural tectonic joints", "hyper-realistic materials", "authentic tropical landscaping"]
+    "projectType": "Typology of the project",
+    "buildingLocation": "Project location or climate zone",
+    "climateAndBiome": "Climate conditions and environmental context",
+    "floorsAndScale": "Number of storeys and physical scale",
+    "formAndMassing": "Sculptural volumetric massing description",
+    "facadeComposition": "Detailed facade rhythm, envelope articulation, and screening",
+    "roofDesign": "Roof form, eaves, materials, and drainage profile",
+    "fenestrationAndGlazing": "Glazing type, framing, solar performance, and aperture rhythm",
+    "materialSchedule": "Primary physical materials, surface finishes, and colors",
+    "siteAndLandscape": "Plaza, landscape entourage, paving, and vegetation matching the style and biome",
+    "lightingAndAtmosphere": "Lighting conditions, time of day, atmosphere, and shadow quality",
+    "cameraComposition": "Lens focal length, viewpoint angle, horizon line, and plumb verticals",
+    "preservedReferenceElements": ["Key elements preserved from brief or reference"],
+    "refinedDesignElements": ["Enhanced tectonic elements, materials, and details"]
   },
-  "photorealisticPrompt": "Complete, self-contained, publication-grade architectural visualization prompt ready for Canon EOS R5 / V-Ray rendering describing the building in exhaustive physical detail.",
+  "photorealisticPrompt": "Complete, self-contained, publication-grade architectural visualization prompt ready for Canon EOS R5 / V-Ray rendering describing the building in exhaustive physical detail adhering to the user's requested style, materials, camera, and lighting.",
   "negativeConstraints": "cartoon, flat illustration, vector graphics, 3D CAD clay model, wireframe, low poly, oversaturated plastic colors, watermarks, text overlay"
 }`;
 
@@ -1498,88 +2039,22 @@ CRITICAL MULTIMODAL INSTRUCTION FOR ARCHITECTURAL PRESENTATION BOARDS & SKETCHES
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       return {
-        conceptStatement: parsed.conceptStatement || 'Architectural design synthesizing contemporary tectonic clarity with vernacular Philippine bioclimatic principles.',
-        materialPalette: Array.isArray(parsed.materialPalette) ? parsed.materialPalette : [],
-        environmentalAnalysis: parsed.environmentalAnalysis || {
-          solarOrientation: 'East-West building orientation with deep overhangs.',
-          windChanneling: 'Raised ground-floor breezeways capturing Amihan and Habagat breezes.',
-          stormWaterStrategy: 'Integrated rainwater bioswales and retention cisterns.',
-        },
-        buildingCodeNotes: Array.isArray(parsed.buildingCodeNotes) ? parsed.buildingCodeNotes : [],
-        jurorDefenseTips: Array.isArray(parsed.jurorDefenseTips) ? parsed.jurorDefenseTips : [],
-        architecturalSpec: parsed.architecturalSpec || {
-          projectType: 'Civic Architecture',
-          buildingLocation: 'Philippines',
-          climateAndBiome: 'Tropical monsoon',
-          floorsAndScale: '2-3 storeys',
-          formAndMassing: 'Modern tropical massing',
-          facadeComposition: 'Timber louvers and glass',
-          roofDesign: 'Deep cantilevered roof',
-          fenestrationAndGlazing: 'Low-E solar glazing',
-          materialSchedule: 'Board-formed concrete, teak, aluminum',
-          siteAndLandscape: 'Permeable plaza, native palms',
-          lightingAndAtmosphere: 'Golden hour sunlight',
-          cameraComposition: '24mm tilt-shift two-point perspective',
-          preservedReferenceElements: [],
-          refinedDesignElements: [],
-          photorealisticPrompt: prompt,
-          negativeConstraints: 'cartoon, flat illustration, vector',
-        },
-        photorealisticPrompt: parsed.photorealisticPrompt || prompt,
-        enhancedPrompt: parsed.photorealisticPrompt || prompt,
+        conceptStatement: parsed.conceptStatement || dynamicFallback.conceptStatement,
+        materialPalette: Array.isArray(parsed.materialPalette) && parsed.materialPalette.length > 0 ? parsed.materialPalette : dynamicFallback.materialPalette,
+        environmentalAnalysis: parsed.environmentalAnalysis || dynamicFallback.environmentalAnalysis,
+        buildingCodeNotes: Array.isArray(parsed.buildingCodeNotes) && parsed.buildingCodeNotes.length > 0 ? parsed.buildingCodeNotes : dynamicFallback.buildingCodeNotes,
+        jurorDefenseTips: Array.isArray(parsed.jurorDefenseTips) && parsed.jurorDefenseTips.length > 0 ? parsed.jurorDefenseTips : dynamicFallback.jurorDefenseTips,
+        architecturalSpec: parsed.architecturalSpec || dynamicFallback.architecturalSpec,
+        photorealisticPrompt: parsed.photorealisticPrompt || dynamicFallback.photorealisticPrompt,
+        enhancedPrompt: parsed.photorealisticPrompt || dynamicFallback.enhancedPrompt,
       };
     }
   } catch (err) {
-    console.warn('Gemini architectural analysis error, using local architectural intelligence:', err);
+    console.warn('Gemini architectural analysis error, using dynamic architectural intelligence:', err);
   }
 
-  // Local fallback synthesis for Stage 1 if API text call fails
-  const localSpec: ArchitecturalDesignSpecification = {
-    projectType: prompt.toLowerCase().includes('hall') ? 'Civic Municipal Hall' : 'Modern Tropical Architecture',
-    buildingLocation: prompt.toLowerCase().includes('sorsogon') ? 'Sorsogon City, Bicol, Philippines' : 'Philippines',
-    climateAndBiome: 'Tropical wet monsoon, high humidity, typhoon-resilient zone',
-    floorsAndScale: '2 storeys with grand civic concourse',
-    formAndMassing: 'Aerodynamic biomorphic roof canopy hovering over an upper volume lifted on pilotis with an open ground-level civic concourse',
-    facadeComposition: 'Perforated UHPC sunscreen panels with constellation apertures and vertical operable timber brise-soleil',
-    roofDesign: 'Sweeping cantilevered roof canopy with 3.0m eaves and concealed rainwater gutters',
-    fenestrationAndGlazing: 'Double-glazed Low-E solar curtain wall with 50mm black powder-coated aluminum mullions',
-    materialSchedule: 'Off-form board-formed concrete (#DDD8CE), warm Philippine teak slats (#C85A32), and satin low-iron glass',
-    siteAndLandscape: 'Permeable travertine civic plaza, native Narra shade trees, mature coconut palms (Cocos nucifera), and rain garden bioswales',
-    lightingAndAtmosphere: 'Warm late-afternoon golden hour sunlight at 5:00 PM, long soft directional shadows, warm 3000K interior glow',
-    cameraComposition: 'Human eye-level (1.6m) two-point architectural perspective, 24mm tilt-shift lens, perfectly plumb vertical lines',
-    preservedReferenceElements: ['Biomimetic roof canopy', 'Lifted ground level', 'Perforated screen facade'],
-    refinedDesignElements: ['Physical material textures', 'Ray-traced glass reflections', 'Authentic tropical landscaping'],
-    photorealisticPrompt: `Photorealistic architectural photograph of a modern tropical civic building in the Philippines. Captured with a 24mm tilt-shift lens from human eye-level (1.6m). Vertical columns and mullions are strictly plumb and straight. The building features an aerodynamic sweeping roof canopy with deep 3.0m eaves, lifted upper administrative volume clad in board-formed concrete and perforated sunscreen panels, open-air ground floor civic concourse, and warm teak timber louvers. Floor-to-ceiling Low-E glass curtain walls reflect the warm golden-hour afternoon sky and lush tropical landscaping (coconut palms and Narra shade trees). Editorial publication standard for ArchDaily.`,
-    negativeConstraints: 'cartoon, flat vector illustration, low poly, 3D CAD clay model, wireframe, plastic materials, watermarks',
-  };
-
-  return {
-    conceptStatement:
-      'This architectural proposal transforms civic infrastructure into an open, welcoming community sanctuary rooted in vernacular Philippine domestic architecture and biomimetic climate responsiveness.',
-    materialPalette: [
-      { material: 'Board-Formed Concrete', application: 'Structural cores and shear walls', rationale: 'High thermal mass dampens tropical heat; withstands typhoons and earthquakes.' },
-      { material: 'Operable Teak Brise-Soleil', application: 'Upper facade louvers', rationale: 'Filters high-angle solar glare while permitting continuous Amihan breeze cross-ventilation.' },
-      { material: 'Low-E Insulated Double Glazing', application: 'Public concourse curtain walls', rationale: 'Maximizes natural daylighting without excessive Solar Heat Gain Coefficient.' },
-      { material: 'Permeable Stone Pavers', application: 'Civic pedestrian plaza', rationale: 'Prevents urban heat island effect and promotes natural stormwater aquifer recharge.' },
-    ],
-    environmentalAnalysis: {
-      solarOrientation: 'Longitudinal East-West building axis limits direct solar radiation on broad facade planes.',
-      windChanneling: 'Raised ground-floor pilotis channel prevailing Amihan and Habagat breezes through public spaces.',
-      stormWaterStrategy: 'Deep 3.0m cantilevered eaves shed monsoon rains into bioretention swales and cisterns.',
-    },
-    buildingCodeNotes: [
-      'PD 1096 Sec. 704: Complies with allowable Total Open Space within Lot (TOSL) and required setback clearances.',
-      'BP 344 Rule II: Full universal access provided with 1:12 ramp gradients and tactile guiding pavers.',
-      'RA 9514: Dual remote smoke-proof enclosed egress stair towers with positive pressure ventilation.',
-    ],
-    jurorDefenseTips: [
-      { question: 'How did you justify your ramp length under BP 344?', suggestedAnswer: 'We maintained a strict 1:12 slope with 1.5m level rest landings every 6.0m of run, ensuring full universal accessibility.' },
-      { question: 'How does your design address excessive heat gain in glass atriums?', suggestedAnswer: 'Major glazing faces strictly North, shielded by deep horizontal overhangs and Low-E solar coatings to prevent heat entrapment.' },
-    ],
-    architecturalSpec: localSpec,
-    photorealisticPrompt: localSpec.photorealisticPrompt,
-    enhancedPrompt: localSpec.photorealisticPrompt,
-  };
+  // Use dynamic architectural synthesis fallback matching the user's actual brief
+  return dynamicFallback;
 }
 
 /**
@@ -1733,7 +2208,8 @@ export async function generateInAppStudioResult({
 
 /**
  * Analyzes rough architectural prompt and optional attached sketch/brief,
- * returning structured critique & improved version with Philippine climate, building code, and camera rules.
+ * returning structured critique & improved version with style fidelity, building code, and camera rules.
+ * ZERO HOMOGENIZATION: Does NOT force tropical modern or Philippine context on non-tropical designs.
  */
 export async function enhanceArchitecturalPromptWithGemini(
   userPrompt: string,
@@ -1742,15 +2218,18 @@ export async function enhanceArchitecturalPromptWithGemini(
   model?: string
 ): Promise<PromptCritiqueResult> {
   const chosenModel = model || getStoredGeminiModel();
+  const ctx = detectArchitecturalContext(userPrompt, fileItem);
 
-  const systemInstruction = `You are an expert Philippine architectural visualizer and design professor.
-Your role is to critique a student's prompt and any attached drawings/briefs, transforming them into an ArchDaily-grade, 8K presentation visual prompt.
-You MUST consider the Philippine context:
-- Solar orientation & tropical passive cooling (Amihan northeast monsoon, Habagat southwest monsoon, deep eaves, brise-soleil).
-- Camera rules: 2-point perspective, 24mm tilt-shift lens with STRICTLY vertical building columns (zero keystoning).
-- Philippine National Building Code (PD 1096) and BP 344 accessibility.
-- Crisp materiality (exposed board-formed concrete, warm timber louvers, Low-E glass, permeable pavers).
-- Quality standards: V-Ray 6 benchmark, 8K resolution, negative guardrails against AI distortion.`;
+  const systemInstruction = `You are a world-class Architectural Visualization Director and Design Professor.
+Your role is to critique an architecture student's prompt and any attached drawings/briefs, transforming them into an ArchDaily-grade, 8K presentation visual prompt.
+
+CORE ARCHITECTURAL RULES — STYLE FIDELITY (ZERO HOMOGENIZATION):
+1. Respect the user's chosen architectural style, typology, materials, and atmospheric mood (e.g. Cyberpunk, Brutalist, Minimalist, Deconstructivist, Gothic, Scandinavian, Industrial, Parametric, Tropical Modern, Vernacular).
+2. NEVER force every building into a tropical modern style or civic hall with coconut palms and teak slats. If the student specifies a Cyberpunk Arena with obsidian, dark concrete, and neon, critique and enhance THAT specific style and materiality.
+3. If and only if the student specifies Philippine context, tropical climate, or local board exam typologies (PD 1096 / BP 344), emphasize Philippine bioclimatic passive cooling (Amihan/Habagat, deep eaves, sunshading). For other styles, provide the corresponding structural, climatic, and environmental response.
+4. Camera rules: Strict architectural photography rules (24mm tilt-shift lens or user-specified lens) with strictly vertical columns and mullions (zero keystoning / vertical convergence).
+5. Crisp physical materiality (PBR roughness, authentic textures, real-world construction joints).
+6. Quality standards: ArchDaily / V-Ray 6 / Octane Render benchmark, 8K resolution, explicit negative guardrails against AI distortion.`;
 
   let fileAttachmentContext = '';
   if (fileItem) {
@@ -1776,17 +2255,16 @@ Analyze this request using model "${chosenModel}" and respond ONLY in valid JSON
 {
   "critiquePoints": [
     { "category": "Camera & Perspective", "issue": "What was missing", "solution": "How to fix it" },
-    { "category": "Philippine Climate & Passive Design", "issue": "What was missing", "solution": "How to fix it" },
+    { "category": "Environmental & Passive Strategy", "issue": "What was missing", "solution": "How to fix it" },
     { "category": "Materiality & Lighting", "issue": "What was missing", "solution": "How to fix it" }
   ],
   "philippineContextNotes": [
-    "Tip on Amihan/Habagat or PD 1096",
-    "Tip on tropical sun shading or local materials"
+    "Contextual tip on orientation, materiality, or climate response appropriate for this design"
   ],
   "detectedVisualFeatures": [
     "Feature detected from prompt or attached image"
   ],
-  "enhancedPrompt": "The full, rich, studio-grade prompt ready to paste into Gemini for 8K rendering.",
+  "enhancedPrompt": "The full, rich, studio-grade prompt ready to paste into Gemini for 8K rendering adhering faithfully to the student's chosen style and materials.",
   "qualityScore": 96
 }`;
 
@@ -1807,10 +2285,13 @@ Analyze this request using model "${chosenModel}" and respond ONLY in valid JSON
           originalPrompt: userPrompt,
           enhancedPrompt: parsed.enhancedPrompt || generateLocalEnhancedPrompt(userPrompt, fileItem),
           critiquePoints: parsed.critiquePoints || generateLocalCritique(userPrompt, fileItem),
-          philippineContextNotes: parsed.philippineContextNotes || [
+          philippineContextNotes: parsed.philippineContextNotes || (ctx.isTropicalOrPhilippine ? [
             'Orient major openings North-South to minimize direct solar heat gain in Philippine tropical sun.',
             'Incorporate Amihan (Northeast) & Habagat (Southwest) breezeways for natural ventilation.',
-          ],
+          ] : [
+            'Envelope massing responds directly to solar exposure and microclimate airflow.',
+            'Material specifications ensure high thermal performance and lifecycle endurance.',
+          ]),
           detectedVisualFeatures: parsed.detectedVisualFeatures || (fileItem ? [`Attached ${fileItem.name} analyzed for massing & spatial intent`] : undefined),
           qualityScore: parsed.qualityScore || 95,
         };
@@ -1825,16 +2306,19 @@ Analyze this request using model "${chosenModel}" and respond ONLY in valid JSON
     originalPrompt: userPrompt,
     enhancedPrompt: generateLocalEnhancedPrompt(userPrompt, fileItem),
     critiquePoints: generateLocalCritique(userPrompt, fileItem),
-    philippineContextNotes: [
+    philippineContextNotes: ctx.isTropicalOrPhilippine ? [
       'Philippine Tropical Sun: Major glazing oriented North-South; deep 2.5m overhangs prevent high heat gain.',
       'Prevailing Winds: Architectural breezeways positioned to channel Amihan (cool Northeast wind) and Habagat.',
       'Philippine Building Code: Retain mandatory front setbacks (PD 1096) and 1:12 PWD access ramps (BP 344).',
+    ] : [
+      'Thermal Envelope: High-performance envelope assemblies mitigate localized urban microclimate heating.',
+      'Structural Life Safety: Assembly egress portals and structural load paths engineered for severe loading.',
     ],
     detectedVisualFeatures: fileItem
       ? [
           `Reference file attached: ${fileItem.name}`,
           'Volumetric massing proportions locked to prevent AI distortion',
-          'Bioclimatic tropical passive strategies applied',
+          ctx.isTropicalOrPhilippine ? 'Bioclimatic tropical passive strategies applied' : 'Structural articulation and materiality locked',
         ]
       : undefined,
     qualityScore: 94,
@@ -1844,6 +2328,7 @@ Analyze this request using model "${chosenModel}" and respond ONLY in valid JSON
 export function generateLocalCritique(raw: string, fileItem?: UploadedFileItem) {
   const points = [];
   const lower = raw.toLowerCase();
+  const ctx = detectArchitecturalContext(raw, fileItem);
 
   if (fileItem && fileItem.mimeType.startsWith('image/')) {
     points.push({
@@ -1853,7 +2338,7 @@ export function generateLocalCritique(raw: string, fileItem?: UploadedFileItem) 
     });
   }
 
-  const mentionsCamera = lower.includes('lens') || lower.includes('camera') || lower.includes('perspective') || lower.includes('angle');
+  const mentionsCamera = lower.includes('lens') || lower.includes('camera') || lower.includes('perspective') || lower.includes('angle') || lower.includes("worm's-eye") || lower.includes('14mm') || lower.includes('24mm');
   if (!mentionsCamera) {
     points.push({
       category: 'Camera & Horizon Control',
@@ -1864,23 +2349,38 @@ export function generateLocalCritique(raw: string, fileItem?: UploadedFileItem) 
     points.push({
       category: 'Camera & Horizon Control',
       issue: 'Camera perspective specified, but lacks strict 2-point perspective zero-keystoning architectural guardrails.',
-      solution: 'Locked eye-level 1.6m horizon line with plumb vertical mullions.',
+      solution: 'Locked eye-level 1.6m horizon line with plumb vertical mullions and zero keystoning distortion.',
     });
   }
 
-  const mentionsClimate = lower.includes('tropical') || lower.includes('sun') || lower.includes('wind') || lower.includes('overhang') || lower.includes('eaves');
-  if (!mentionsClimate) {
+  if (ctx.styleCategory === 'cyberpunk' || ctx.styleCategory === 'neo-brutalist') {
     points.push({
-      category: 'Philippine Tropical Context',
-      issue: 'No solar orientation or passive ventilation specified for Philippine climate conditions.',
-      solution: 'Added deep cantilevered roof eaves, vertical timber louvers, and cross-ventilation breezeways for tropical comfort.',
+      category: 'Atmospheric Lighting & Specular Balance',
+      issue: 'High-contrast nocturnal scenes often suffer from blown-out specular highlights or crushed facade shadows in standard AI renders.',
+      solution: 'Balanced dynamic range (HDR) with diffuse rain reflections, matte obsidian surface absorption, and directional neon accent reveals.',
+    });
+  } else if (ctx.styleCategory === 'brutalist') {
+    points.push({
+      category: 'Tectonic Massing & Surface Relief',
+      issue: 'Monolithic concrete requires expressive textural shuttering joints to prevent looking like a flat CG mass.',
+      solution: 'Specified board-formed wood-grain relief, formwork tie-rod indents, and deep fenestration shadow reveals.',
     });
   } else {
-    points.push({
-      category: 'Philippine Tropical Context',
-      issue: 'Tropical elements mentioned, but needs technical passive cooling specifications for board defense.',
-      solution: 'Integrated Amihan/Habagat wind capture channels and solar heat-gain prevention overhangs.',
-    });
+    // Tropical or general architecture
+    const mentionsClimate = lower.includes('tropical') || lower.includes('sun') || lower.includes('wind') || lower.includes('overhang') || lower.includes('eaves');
+    if (!mentionsClimate) {
+      points.push({
+        category: 'Philippine Tropical Context',
+        issue: 'No solar orientation or passive ventilation specified for Philippine climate conditions.',
+        solution: 'Added deep cantilevered roof eaves, vertical timber louvers, and cross-ventilation breezeways for tropical comfort.',
+      });
+    } else {
+      points.push({
+        category: 'Philippine Tropical Context',
+        issue: 'Tropical elements mentioned, but needs technical passive cooling specifications for board defense.',
+        solution: 'Integrated Amihan/Habagat wind capture channels and solar heat-gain prevention overhangs.',
+      });
+    }
   }
 
   points.push({
@@ -1894,31 +2394,89 @@ export function generateLocalCritique(raw: string, fileItem?: UploadedFileItem) 
 
 export function generateLocalEnhancedPrompt(raw: string, fileItem?: UploadedFileItem): string {
   const cleaned = raw.trim() || 'Modern architectural building in tropical setting';
+  const ctx = detectArchitecturalContext(raw, fileItem);
+  const lower = raw.toLowerCase();
   const fileNote = fileItem
     ? `\n- Visual Reference Translation: Faithfully preserve and elevate the architectural volumes, proportions, and spatial geometry seen in attached file "${fileItem.name}".`
     : '';
+
+  // Determine setting & architectural language based on detected style
+  let settingDesc = 'Contemporary architectural context with high-performance envelope and sustainable site integration.';
+  let languageDesc = 'Articulated geometric volumes, horizontal screening, cantilevered floor plates, and transparent public concourses.';
+  let materialsDesc = 'Architectural concrete, high-performance Low-E insulated glazing, and natural stone paving.';
+  let entourageDesc = 'Landscaped pedestrian plaza, native shade trees, integrated linear bioswales, and human scale figures in natural motion blur.';
+
+  if (ctx.styleCategory === 'cyberpunk' || ctx.styleCategory === 'neo-brutalist') {
+    settingDesc = 'Dense futuristic urban metropolis with dramatic verticality, cybernetic transit conduits, and severe weather resilience.';
+    languageDesc = 'Monolithic Neo-Brutalist massing with faceted obsidian rainscreen plates, deep structural shear volumes, and integrated linear LED luminaires.';
+    materialsDesc = 'Matte-black obsidian stone panels, raw dark charcoal architectural concrete, anti-glare electrochromic glazing, and brushed dark alloy mullions.';
+    entourageDesc = 'Slick wet reflective dark asphalt, subterranean drainage grates, subtle atmospheric mist, and urban pedestrians in contemporary dark attire.';
+  } else if (ctx.styleCategory === 'brutalist') {
+    settingDesc = 'Monumental civic / institutional urban setting celebrating permanent structural mass.';
+    languageDesc = 'Monolithic board-formed beton brut concrete, rhythmic structural cantilevers, deep recessed fenestration reveals, and expressive waffle-slab soffits.';
+    materialsDesc = 'Raw board-formed concrete with authentic wood-grain relief and tie-rod holes, dark anodized aluminum, fluted cast glass, and textured aggregate paving.';
+    entourageDesc = 'Architectural reflecting pool, geometric granite steps, crushed gravel plinth, and solitary sculptural pine or birch tree.';
+  } else if (ctx.styleCategory === 'scandinavian') {
+    settingDesc = 'Nordic lakeside or alpine woodland terrain with pristine natural daylight.';
+    languageDesc = 'Clean-lined timber post-and-beam construction, steeply pitched standing-seam gable roof, and panoramic thermal glazing framing the landscape.';
+    materialsDesc = 'Kiln-dried light Siberian larch timber cladding, white-washed brick masonry, matte charcoal zinc roofing, and triple-glazed wood-aluminum frames.';
+    entourageDesc = 'Natural pine woodland, granite stone outcroppings, native grasses, and a timber boardwalk.';
+  } else if (ctx.styleCategory === 'minimalist') {
+    settingDesc = 'Contemplative architectural sanctuary emphasizing spatial purity and natural light modulation.';
+    languageDesc = 'Crisp geometric volumes, frameless floor-to-ceiling glazing, seamless shadow-reveal transitions, and quiet indoor-outdoor thresholds.';
+    materialsDesc = 'Seamless bone-white or charcoal microcement, acoustic low-iron glass, honed limestone pavers, and brushed stainless steel profiles.';
+    entourageDesc = 'Still water reflecting basin, raked gravel courtyard, single sculptural Japanese maple, and museum-grade indirect uplighting.';
+  } else if (ctx.isTropicalOrPhilippine) {
+    settingDesc = 'Philippine tropical modern context with integrated passive environmental strategies.';
+    languageDesc = 'Clean contemporary lines, deep cantilevered roof eaves for monsoon rain protection, vertical timber solar brise-soleil screening, and floor-to-ceiling double-glazed Low-E glass.';
+    materialsDesc = 'Off-form board-formed concrete with tie-rod seams, warm Philippine teak/cedar timber slats, honed travertine pavers, and clear reflective glass.';
+    entourageDesc = 'Indigenous tropical landscaping (Narra shade trees, Royal Palms, Frangipani/Calachuchi, Monstera Deliciosa), linear reflecting water pool, and 2 to 3 minimalist human scale figures in natural motion blur wearing neutral clothing.';
+  }
+
+  // Camera viewpoint & lens
+  let cameraViewpoint = 'Eye-level two-point perspective shot from human height (1.6m horizon line).';
+  let cameraLens = 'Shot on an architectural 24mm tilt-shift lens (Hasselblad H6D-100c format).';
+  if (lower.includes('14mm') || lower.includes("worm's-eye") || lower.includes("worm's eye") || lower.includes('low-angle')) {
+    cameraViewpoint = "Extreme low-angle worm's-eye perspective looking dramatically up at the towering facade with heroic scale.";
+    cameraLens = 'Shot on an ultra-wide 14mm architectural lens with zero keystoning distortion.';
+  } else if (lower.includes('aerial') || lower.includes('drone') || lower.includes("bird's-eye")) {
+    cameraViewpoint = 'Elevated 45-degree oblique drone perspective showing full roofscape and site perimeter.';
+    cameraLens = 'Medium-format aerial camera with sharp edge-to-edge resolution.';
+  } else if (lower.includes('elevation')) {
+    cameraViewpoint = 'Direct frontal orthographic elevation projection aligned parallel to primary facade.';
+    cameraLens = '50mm architectural tilt-shift lens with zero perspective convergence.';
+  }
+
+  // Lighting & atmosphere
+  let lightingAtmosphere = 'Golden hour late-afternoon sunlight (3200K) casting soft, elongated 45-degree diagonal shadows across textured facade planes, with luminous warm 2700K interior cove lighting visibly glowing through transparent glass.';
+  if (lower.includes('neon') || lower.includes('downpour') || lower.includes('cyberpunk') || lower.includes('rain')) {
+    lightingAtmosphere = 'Atmospheric nighttime torrential downpour with fine rain droplets grazing the surfaces, volumetric atmospheric mist, and vibrant neon crimson and electric cyan directional accents reflecting across wet reflective asphalt and stone concourses.';
+  } else if (lower.includes('blue hour') || lower.includes('dusk') || lower.includes('night')) {
+    lightingAtmosphere = 'Dramatic dusk twilight blue-hour illumination with deep cobalt sky, glowing interior architectural light pools, and precise exterior uplighting.';
+  } else if (lower.includes('overcast') || lower.includes('diffuse')) {
+    lightingAtmosphere = 'Soft diffuse overcast daylight with gentle ambient occlusion shadows, highlighting subtle material textural variations without harsh glare.';
+  }
 
   return `**Architectural Visualization Directive: High-Definition Presentation Render**
 
 **Subject & Architectural Concept:**
 ${cleaned}${fileNote}
-- Setting: Philippine tropical modern context with integrated passive environmental strategies.
-- Architectural Language: Clean contemporary lines, deep cantilevered roof eaves for monsoon rain protection, vertical timber solar brise-soleil screening, and floor-to-ceiling double-glazed Low-E glass.
+- Setting: ${settingDesc}
+- Architectural Language: ${languageDesc}
 
 **Camera & Perspective Framing (Studio Critical):**
-- Viewpoint: Eye-level two-point perspective shot from human height (1.6m horizon line).
-- Lens: Shot on an architectural 24mm tilt-shift lens (Hasselblad H6D-100c format).
+- Viewpoint: ${cameraViewpoint}
+- Lens: ${cameraLens}
 - **STRICT CONSTRAINT**: All vertical columns, mullions, and wall edges MUST remain strictly parallel and plumb. Zero vertical convergence or perspective keystoning distortion.
 
-**Tropical Lighting & Atmosphere:**
-- Golden hour tropical late-afternoon sunlight (3200K) casting soft, elongated 45-degree diagonal shadows that graze textured concrete facade planes.
-- Luminous warm 2700K interior cove lighting visibly glowing through the transparent glass, revealing interior volume depth.
+**Lighting & Atmosphere:**
+- ${lightingAtmosphere}
 
 **Materiality & Entourage:**
-- Materials: Off-form board-formed concrete with tie-rod seams, warm Philippine teak/cedar timber slats, honed travertine pavers, and clear reflective glass.
-- Entourage: Indigenous tropical landscaping (Frangipani/Calachuchi, Royal Palms, Monstera Deliciosa), linear reflecting water pool, and 2 to 3 minimalist human scale figures in natural motion blur wearing neutral clothing.
+- Materials: ${materialsDesc}
+- Entourage: ${entourageDesc}
 
 **Output Fidelity & Guardrails:**
 - Quality: ArchDaily / Dezeen editorial photography, V-Ray 6 and Octane Render benchmark, razor-sharp 8k resolution, physically based rendering (PBR).
-- **NEGATIVE PROMPT (Strict Guardrails):** No warped columns, no curved vertical lines, no sagging roofs, no deformed hands/anatomy, no blurry pixelated textures, no oversaturated fantasy lighting.`;
+- **NEGATIVE PROMPT (Strict Guardrails):** No warped columns, no curved vertical lines, no sagging roofs, no deformed hands/anatomy, no blurry pixelated textures, no oversaturated plastic colors, no cartoon illustrations.`;
 }

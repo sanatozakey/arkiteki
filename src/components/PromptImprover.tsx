@@ -174,7 +174,7 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
     setImageStatus('generating');
     setSelectedActiveViewIndex(0);
     setAdditionalViewError('');
-    setGenerationStage('Stage 1: Gemini Architectural Analysis — Extracting concept, massing, materials, and tropical orientation...');
+    setGenerationStage('Stage 1: Architectural Intelligence — Synthesizing architectural concept, massing, materiality, and environmental strategy...');
 
     try {
       const stageTimer1 = setTimeout(() => {

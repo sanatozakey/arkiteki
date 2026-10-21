@@ -167,6 +167,56 @@ describe('Task 2: Focused Architectural AI Studio System', () => {
       expect(spec.photorealisticPrompt).toContain('plumb and straight');
       expect(spec.architecturalSpec.negativeConstraints).toContain('cartoon');
     });
+
+    it('faithfully synthesizes Neo-Brutalist Cyberpunk Arena with zero tropical homogenization', async () => {
+      const { synthesizeArchitecturalSpecification, generateLocalEnhancedPrompt, detectArchitecturalContext } = await import('../src/utils/geminiApi');
+      const cyberpunkInput = "Neo-Brutalist Cyberpunk Arena with obsidian, dark charcoal concrete, neon crimson/cyan LED strips, downpour, 14mm worm's-eye lens";
+
+      // 1. Context detection
+      const ctx = detectArchitecturalContext(cyberpunkInput);
+      expect(ctx.styleCategory).toBe('neo-brutalist');
+      expect(ctx.typologyCategory).toBe('arena');
+      expect(ctx.isTropicalOrPhilippine).toBe(false);
+
+      // 2. Local enhanced prompt
+      const enhanced = generateLocalEnhancedPrompt(cyberpunkInput);
+      expect(enhanced.toLowerCase()).toContain('cyberpunk');
+      expect(enhanced.toLowerCase()).toContain('obsidian');
+      expect(enhanced.toLowerCase()).toContain('charcoal');
+      expect(enhanced.toLowerCase()).toContain('concrete');
+      expect(enhanced.toLowerCase()).toContain('neon');
+      expect(enhanced.toLowerCase()).toContain("worm's-eye");
+      // MUST NOT contain tropical Philippine elements
+      expect(enhanced).not.toContain('Philippine tropical');
+      expect(enhanced).not.toContain('coconut palms');
+      expect(enhanced).not.toContain('Frangipani/Calachuchi');
+      expect(enhanced).not.toContain('Narra');
+
+      // 3. Dynamic architectural spec synthesis
+      const spec = await synthesizeArchitecturalSpecification({
+        apiKey: 'dummy_key',
+        reasoningModel: 'gemini-3.8-flash',
+        prompt: cyberpunkInput,
+        aspectRatio: '16:9',
+        resolution: '2K',
+        visualStyle: 'photography',
+        viewType: 'hero-perspective',
+      });
+
+      expect(spec.conceptStatement.toLowerCase()).toContain('cyberpunk');
+      expect(spec.photorealisticPrompt.toLowerCase()).toContain('obsidian');
+      expect(spec.photorealisticPrompt.toLowerCase()).toContain('charcoal');
+      expect(spec.photorealisticPrompt.toLowerCase()).toContain('concrete');
+      expect(spec.photorealisticPrompt.toLowerCase()).toContain('neon');
+      // Must NOT contain Sorsogon or coconut palms or Balay Banwa
+      expect(spec.photorealisticPrompt).not.toContain('coconut palms');
+      expect(spec.photorealisticPrompt).not.toContain('Narra');
+      expect(spec.photorealisticPrompt).not.toContain('Sorsogon');
+      expect(spec.photorealisticPrompt).not.toContain('Balay Banwa');
+      // Assembly egress code notes for Arena
+      expect(spec.buildingCodeNotes.some((n) => n.includes('Assembly Egress') || n.includes('IBC') || n.includes('Zoning'))).toBe(true);
+    });
   });
 });
+
 
