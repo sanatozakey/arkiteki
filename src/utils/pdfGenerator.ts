@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import type { QuizDeck } from '../types';
+import type { QuizDeck, FlashcardItem } from '../types';
 
 /**
  * Generates a clean, professional Philippine Board of Architecture Licensure Exam PDF.
@@ -178,9 +178,10 @@ export function generateQuizPdf(deck: QuizDeck, options: { includeAnswerKey?: bo
 }
 
 /**
- * Generates printable Flashcards Study Sheet PDF.
+ * Generates printable Flashcards Study Sheet PDF in professional 2-column licensure card format.
  */
-export function generateFlashcardsPdf(deck: QuizDeck) {
+export function generateFlashcardsPdf(deck: QuizDeck, flashcardsOverride?: FlashcardItem[]) {
+  const cards = flashcardsOverride && flashcardsOverride.length > 0 ? flashcardsOverride : deck.flashcards;
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -189,69 +190,136 @@ export function generateFlashcardsPdf(deck: QuizDeck) {
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 16;
+  const margin = 12;
   const contentWidth = pageWidth - margin * 2;
+  const colGap = 5;
+  const colWidth = (contentWidth - colGap) / 2;
+
   let y = margin;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(27, 67, 50);
-  doc.text('ARKITEKI STUDY FLASHCARDS COMPILATION', margin, y);
-  y += 5;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Deck: ${deck.title} • ${deck.flashcards.length} Key Cards`, margin, y);
-  y += 4;
-
-  doc.setDrawColor(44, 110, 73);
-  doc.setLineWidth(0.5);
-  doc.line(margin, y, pageWidth - margin, y);
-  y += 7;
-
-  deck.flashcards.forEach((card, index) => {
-    // Each card is rendered in a neat framed box
-    const cardHeight = 36;
-    if (y + cardHeight > pageHeight - 15) {
-      doc.addPage();
-      y = margin;
-    }
-
-    doc.setFillColor(250, 248, 245); // #FAF8F5
-    doc.setDrawColor(220, 215, 205);
-    doc.roundedRect(margin, y, contentWidth, cardHeight, 3, 3, 'FD');
-
-    // Front (Concept)
+  const renderHeader = () => {
+    // Header Banner
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.setTextColor(44, 110, 73);
-    doc.text(`CARD ${index + 1}: ${card.front}`, margin + 4, y + 6);
+    doc.setFontSize(13);
+    doc.setTextColor(27, 67, 50); // #1B4332
+    doc.text('ARKITEKI • LICENSURE FLASHCARDS COMPILATION', margin, y + 2);
 
-    // Separator line inside card
-    doc.setDrawColor(230, 226, 218);
-    doc.line(margin + 4, y + 9, margin + contentWidth - 4, y + 9);
-
-    // Back (Definition / Code Rule)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
-    doc.setTextColor(40, 40, 40);
-    const defLines = doc.splitTextToSize(card.back, contentWidth - 8);
-    doc.text(defLines, margin + 4, y + 14);
+    doc.setTextColor(100, 100, 100);
+    const subheader = `Topic: ${deck.title} • ${cards.length} Study Cards • Philippine Architecture Licensure Examination`;
+    doc.text(doc.splitTextToSize(subheader, contentWidth), margin, y + 6);
 
-    y += cardHeight + 4;
+    // Accent line
+    doc.setDrawColor(44, 110, 73);
+    doc.setLineWidth(0.6);
+    doc.line(margin, y + 10, pageWidth - margin, y + 10);
+    y += 14;
+  };
+
+  renderHeader();
+
+  let colIndex = 0; // 0 for left column, 1 for right column
+  let rowY = y;
+  let maxRowHeight = 0;
+
+  cards.forEach((card, index) => {
+    // Calculate card text dimensions
+    const innerMargin = 3.5;
+    const textWidth = colWidth - innerMargin * 2;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    const frontLines = doc.splitTextToSize(card.front, textWidth);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    const backLines = doc.splitTextToSize(card.back, textWidth);
+
+    // Dynamic height calculation
+    const headerHeight = 7;
+    const frontHeight = frontLines.length * 4;
+    const dividerHeight = 3;
+    const backHeight = backLines.length * 3.5;
+    const cardHeight = Math.max(44, headerHeight + frontHeight + dividerHeight + backHeight + 6);
+
+    // Check if new page is needed
+    if (rowY + cardHeight > pageHeight - 16) {
+      doc.addPage();
+      y = margin;
+      renderHeader();
+      rowY = y;
+      colIndex = 0;
+      maxRowHeight = 0;
+    }
+
+    const cardX = margin + colIndex * (colWidth + colGap);
+    const cardY = rowY;
+
+    // Card background
+    doc.setFillColor(250, 248, 245); // Warm cream #FAF8F5
+    doc.setDrawColor(216, 210, 198); // Border #D8D2C6
+    doc.setLineWidth(0.35);
+    doc.roundedRect(cardX, cardY, colWidth, cardHeight, 2.5, 2.5, 'FD');
+
+    // Card Number Pill
+    doc.setFillColor(44, 110, 73); // #2C6E49
+    doc.roundedRect(cardX + innerMargin, cardY + 2.5, 16, 4.5, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`CARD ${(index + 1).toString().padStart(2, '0')}`, cardX + innerMargin + 2, cardY + 5.7);
+
+    // Category Pill / Tag
+    if (card.category) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.8);
+      doc.setTextColor(120, 110, 95);
+      const catText = doc.splitTextToSize(card.category, colWidth - 28)[0];
+      doc.text(catText, cardX + colWidth - innerMargin, cardY + 5.7, { align: 'right' });
+    }
+
+    // Front: Concept / Question
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(27, 67, 50); // Deep green
+    doc.text(frontLines, cardX + innerMargin, cardY + 11.5);
+
+    // Divider Line
+    const divY = cardY + 11.5 + frontLines.length * 4;
+    doc.setDrawColor(230, 225, 215);
+    doc.setLineWidth(0.25);
+    doc.line(cardX + innerMargin, divY, cardX + colWidth - innerMargin, divY);
+
+    // Back: Answer / Code Provision
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.8);
+    doc.setTextColor(45, 45, 45);
+    doc.text(backLines, cardX + innerMargin, divY + 4);
+
+    maxRowHeight = Math.max(maxRowHeight, cardHeight);
+
+    // Advance column or row
+    if (colIndex === 0) {
+      colIndex = 1;
+    } else {
+      colIndex = 0;
+      rowY += maxRowHeight + 3.5;
+      maxRowHeight = 0;
+    }
   });
 
+  // Footer on all pages
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(140, 140, 140);
     doc.text(
-      `Page ${i} of ${totalPages} • Arkiteki Flashcards Sheet`,
+      `Page ${i} of ${totalPages} • Arkiteki Licensure Study System • PRC Architecture Board Exam Reviewer`,
       pageWidth / 2,
-      pageHeight - 8,
+      pageHeight - 6,
       { align: 'center' }
     );
   }

@@ -23,8 +23,10 @@ import {
 import confetti from 'canvas-confetti';
 import { 
   generateInAppStudioResult,
+  generateInAppImage,
   GEMINI_MODELS 
 } from '../utils/geminiApi';
+import { playCompletionChime } from '../utils/soundNotification';
 import { processUploadedFile } from '../utils/fileParser';
 import type { UploadedFileItem, InAppStudioResult, PromptHistoryItem } from '../types';
 
@@ -50,6 +52,8 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
   );
   const [attachedFile, setAttachedFile] = useState<UploadedFileItem | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRetryingImage, setIsRetryingImage] = useState(false);
+  const [imageStatus, setImageStatus] = useState<'idle' | 'generating' | 'completed' | 'failed'>('idle');
   const [generationStage, setGenerationStage] = useState('');
   const [studioResult, setStudioResult] = useState<InAppStudioResult | null>(null);
   const [copiedDossier, setCopiedDossier] = useState(false);
@@ -130,6 +134,7 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
     }
 
     setIsGenerating(true);
+    setImageStatus('generating');
     setGenerationStage('Synthesizing project requirements with Philippine architectural intelligence...');
 
     try {
@@ -154,11 +159,22 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
       clearTimeout(stageTimer2);
 
       setStudioResult(result);
+      if (result.imageUrl) {
+        setImageStatus('completed');
+      } else if (result.svgFloorPlan) {
+        setImageStatus('completed');
+      } else {
+        setImageStatus('failed');
+      }
+
       if (result.svgFloorPlan && !result.imageUrl) {
         setActiveVisualTab('floor-plan');
       } else {
         setActiveVisualTab('render');
       }
+
+      // Play completion audio notification
+      playCompletionChime();
 
       // Save to prompt history for Profile view
       try {
@@ -187,9 +203,44 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
       });
     } catch (err) {
       console.error('Architectural generation failed', err);
+      setImageStatus('failed');
     } finally {
       setIsGenerating(false);
       setGenerationStage('');
+    }
+  };
+
+  // Dedicated handler to retry/re-render photorealistic visual plate
+  const handleRetryImageRender = async () => {
+    if (!studioResult || !apiKey) return;
+    setIsRetryingImage(true);
+    setImageStatus('generating');
+    try {
+      const imgRes = await generateInAppImage({
+        apiKey,
+        prompt: studioResult.enhancedPrompt || userInput,
+        aspectRatio,
+        fileItem: attachedFile || undefined,
+      });
+
+      if (imgRes?.imageUrl) {
+        setStudioResult((prev) => (prev ? { ...prev, imageUrl: imgRes.imageUrl, imageSource: imgRes.source } : null));
+        setImageStatus('completed');
+        playCompletionChime();
+        confetti({
+          particleCount: 40,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: ['#2C6E49', '#C85A32', '#1B4332'],
+        });
+      } else {
+        setImageStatus('failed');
+      }
+    } catch (err) {
+      console.error('Retry render failed:', err);
+      setImageStatus('failed');
+    } finally {
+      setIsRetryingImage(false);
     }
   };
 
@@ -341,7 +392,7 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
                   Click or drag and drop your drawing, sketch, or brief
                 </div>
                 <p className="text-[11px] text-stone-400 dark:text-stone-500 m-0">
-                  Supports JPG, PNG, WEBP, PDF, DOCX, and TXT files (up to 20MB)
+                  Supports JPG, PNG, WEBP, PDF, DOCX, and TXT files (up to 200MB)
                 </p>
               </div>
             </div>
@@ -566,37 +617,73 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
           </div>
 
           {/* 1. VISUAL SHOWCASE: Tab-based delivery */}
-          {activeVisualTab === 'render' && studioResult.imageUrl && (
+          {activeVisualTab === 'render' && (
             <div className="space-y-2 animate-fade-in">
-              <div className="relative group rounded-2xl overflow-hidden border border-[#E8E4DC] dark:border-stone-800 bg-stone-950 max-h-[500px] flex items-center justify-center">
-                <img
-                  src={studioResult.imageUrl}
-                  alt="Architectural Render"
-                  className="w-full h-auto max-h-[500px] object-contain transition group-hover:scale-[1.01]"
-                />
-                <div className="absolute bottom-3 right-3 flex items-center gap-2 bg-stone-900/85 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shadow-lg">
-                  <button
-                    onClick={() => setLightboxOpen(true)}
-                    className="p-1.5 text-white hover:text-emerald-400 rounded-lg hover:bg-white/10 transition cursor-pointer"
-                    title="Fullscreen Lightbox"
-                  >
-                    <Maximize2 className="w-4 h-4" />
-                  </button>
-                  <a
-                    href={studioResult.imageUrl}
-                    download={`arkiteki-render-${Date.now()}.png`}
-                    className="p-1.5 text-white hover:text-emerald-400 rounded-lg hover:bg-white/10 transition flex items-center gap-1 text-xs"
-                    title="Download Render Image"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Download PNG</span>
-                  </a>
+              {studioResult.imageUrl ? (
+                <div className="relative group rounded-2xl overflow-hidden border border-[#E8E4DC] dark:border-stone-800 bg-stone-950 max-h-[520px] flex items-center justify-center">
+                  <img
+                    src={studioResult.imageUrl}
+                    alt="Architectural Render"
+                    className="w-full h-auto max-h-[520px] object-contain transition group-hover:scale-[1.01]"
+                  />
+                  <div className="absolute bottom-3 right-3 flex items-center gap-2 bg-stone-900/85 backdrop-blur-md p-1.5 rounded-xl border border-white/10 shadow-lg">
+                    <button
+                      onClick={() => setLightboxOpen(true)}
+                      className="p-1.5 text-white hover:text-emerald-400 rounded-lg hover:bg-white/10 transition cursor-pointer"
+                      title="Fullscreen Lightbox"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </button>
+                    <a
+                      href={studioResult.imageUrl}
+                      download={`arkiteki-render-${Date.now()}.png`}
+                      className="p-1.5 text-white hover:text-emerald-400 rounded-lg hover:bg-white/10 transition flex items-center gap-1 text-xs"
+                      title="Download Render Image"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download PNG</span>
+                    </a>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-stone-400 dark:text-stone-500 font-mono px-1">
-                <span>Direct Visual Work • 24mm tilt-shift plumb architectural alignment</span>
-                <span>Ready for Thesis & Presentation Boards</span>
-              </div>
+              ) : isRetryingImage ? (
+                <div className="h-64 rounded-2xl border-2 border-dashed border-[#2C6E49]/40 bg-emerald-50/30 dark:bg-emerald-950/20 flex flex-col items-center justify-center gap-2.5 p-6 text-center animate-pulse">
+                  <RefreshCw className="w-6 h-6 text-[#2C6E49] dark:text-emerald-400 animate-spin" />
+                  <span className="text-xs font-semibold text-stone-700 dark:text-stone-300">
+                    Synthesizing photorealistic architectural perspective...
+                  </span>
+                </div>
+              ) : (
+                <div className="p-8 rounded-2xl border-2 border-dashed border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-amber-950/20 flex flex-col items-center justify-center gap-3 text-center">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 flex items-center justify-center">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-stone-900 dark:text-stone-100 m-0">
+                      Photorealistic Render Plate
+                    </p>
+                    <p className="text-xs text-stone-500 dark:text-stone-400 m-0 max-w-md">
+                      {imageStatus === 'failed'
+                        ? 'Visual plate render encountered an issue. Click below to retry generating the photorealistic perspective.'
+                        : 'The presentation dossier has been prepared. Click below to render the photorealistic visual plate.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRetryImageRender}
+                    className="px-5 py-2.5 rounded-xl bg-[#2C6E49] hover:bg-[#23583a] text-white text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm transition"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Generate Photorealistic Render</span>
+                  </button>
+                </div>
+              )}
+
+              {studioResult.imageUrl && (
+                <div className="flex items-center justify-between text-[11px] text-stone-400 dark:text-stone-500 font-mono px-1">
+                  <span>Direct Visual Work • 24mm tilt-shift plumb architectural alignment</span>
+                  <span>Ready for Thesis & Presentation Boards</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -659,13 +746,6 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
                 <span>Multimodal Vision Geometry Locked • Proportions preserved from user input</span>
                 <span>Publication-Grade Rendering</span>
               </div>
-            </div>
-          )}
-
-          {!studioResult.imageUrl && !studioResult.svgFloorPlan && (
-            <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40 rounded-2xl flex items-center gap-2 text-xs text-[#1B4332] dark:text-emerald-300">
-              <ShieldCheck className="w-4 h-4 text-[#2C6E49] dark:text-emerald-400 flex-shrink-0" />
-              <span>Architectural presentation dossier synthesized directly in-app using <strong>{studioResult.modelUsed}</strong>.</span>
             </div>
           )}
 

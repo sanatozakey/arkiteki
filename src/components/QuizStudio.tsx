@@ -15,15 +15,20 @@ import {
   Download,
   X,
   Trash2,
-  BookOpen
+  BookOpen,
+  Volume2,
+  VolumeX,
+  Shuffle,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ALE_REVIEW_DECKS } from '../data/quizDecks';
-import { generateQuizFromNotes, buildGeminiExamPrompt } from '../utils/quizGenerator';
+import { generateQuizFromNotes, generateFlashcardsFromNotes, buildGeminiExamPrompt } from '../utils/quizGenerator';
 import { processUploadedFile } from '../utils/fileParser';
-import { generateQuizWithGemini, detectTopicsWithGemini } from '../utils/geminiApi';
+import { generateQuizWithGemini, generateFlashcardsWithGemini, detectTopicsWithGemini } from '../utils/geminiApi';
 import { saveQuizScoreToSupabase } from '../utils/supabaseClient';
 import { generateQuizPdf, generateFlashcardsPdf } from '../utils/pdfGenerator';
+import { playCompletionChime, isSoundNotificationEnabled, setSoundNotificationEnabled } from '../utils/soundNotification';
 import type { QuizQuestion, FlashcardItem, QuizDeck, UploadedFileItem, QuizAttemptRecord } from '../types';
 
 interface QuizStudioProps {
@@ -139,10 +144,129 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
     return merged.slice(0, targetCount);
   };
 
-  // Flashcards state
-  const [currentFlashcards, setCurrentFlashcards] = useState<FlashcardItem[]>(ALE_REVIEW_DECKS[0].flashcards);
+  // Flashcards state with independent count controls
+  const [flashcardCountType, setFlashcardCountType] = useState<15 | 25 | 50 | 'custom'>(15);
+  const [customFlashcardCount, setCustomFlashcardCount] = useState<number>(15);
+  const [currentFlashcards, setCurrentFlashcards] = useState<FlashcardItem[]>(() => ALE_REVIEW_DECKS[0].flashcards);
   const [flashcardIndex, setFlashcardIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
+  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => isSoundNotificationEnabled());
+
+  const getEffectiveFlashcardCount = (): number => {
+    if (flashcardCountType === 'custom') {
+      const val = Number(customFlashcardCount);
+      if (isNaN(val) || val < 1) return 15;
+      return Math.min(Math.max(val, 5), 100);
+    }
+    return flashcardCountType;
+  };
+
+  const buildFlashcardsForDeck = (deck: QuizDeck, targetCount: number): FlashcardItem[] => {
+    if (deck.flashcards.length >= targetCount) {
+      return deck.flashcards.slice(0, targetCount);
+    }
+    const sourceText = `${deck.title}. ${deck.subject}. ${deck.description}`;
+    const filler = generateFlashcardsFromNotes(sourceText, deck.title, targetCount);
+    const existingFronts = new Set(deck.flashcards.map((f) => f.front.toLowerCase()));
+    const merged = [...deck.flashcards];
+
+    for (const card of filler) {
+      if (merged.length >= targetCount) break;
+      if (!existingFronts.has(card.front.toLowerCase())) {
+        merged.push(card);
+        existingFronts.add(card.front.toLowerCase());
+      }
+    }
+    return merged.slice(0, targetCount);
+  };
+
+  const handleFlashcardCountSelectionChange = (newCount: 15 | 25 | 50 | 'custom', customVal?: number) => {
+    setFlashcardCountType(newCount);
+    if (customVal !== undefined) {
+      setCustomFlashcardCount(customVal);
+    }
+    const count = newCount === 'custom' ? (customVal ?? customFlashcardCount) : newCount;
+    const updated = buildFlashcardsForDeck(selectedDeck, count);
+    setCurrentFlashcards(updated);
+    setFlashcardIndex(0);
+    setIsFlipped(false);
+  };
+
+  const handleGenerateFlashcards = async () => {
+    const targetCount = getEffectiveFlashcardCount();
+    setIsGeneratingFlashcards(true);
+    setFlashcardIndex(0);
+    setIsFlipped(false);
+
+    try {
+      let cards: FlashcardItem[] = [];
+      const sourceText = pastedNotes.trim() || uploadedFile?.rawText || uploadedFile?.textPreview || `${selectedDeck.title}. ${selectedDeck.subject}. ${selectedDeck.description}`;
+
+      if (apiKey) {
+        cards = await generateFlashcardsWithGemini({
+          apiKey,
+          notesText: pastedNotes || undefined,
+          fileItem: uploadedFile || undefined,
+          topicTitle: selectedDeck.title,
+          model: currentModel,
+          flashcardCount: targetCount,
+          detectedMetadata: uploadedFile?.detectedMetadata,
+        });
+      }
+
+      if (!cards || cards.length === 0) {
+        cards = generateFlashcardsFromNotes(sourceText, selectedDeck.title, targetCount);
+      }
+
+      setCurrentFlashcards(cards);
+      playCompletionChime();
+      confetti({
+        particleCount: 35,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: ['#2C6E49', '#C85A32', '#1B4332'],
+      });
+    } catch (err) {
+      console.warn('Flashcard generation error, using local fallback:', err);
+      const fallbackCards = buildFlashcardsForDeck(selectedDeck, targetCount);
+      setCurrentFlashcards(fallbackCards);
+    } finally {
+      setIsGeneratingFlashcards(false);
+    }
+  };
+
+  const handleShuffleFlashcards = () => {
+    setCurrentFlashcards((prev) => {
+      const copy = [...prev];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    });
+    setFlashcardIndex(0);
+    setIsFlipped(false);
+  };
+
+  const handleDownloadFlashcards = () => {
+    generateFlashcardsPdf(selectedDeck, currentFlashcards);
+    confetti({
+      particleCount: 25,
+      spread: 50,
+      origin: { y: 0.8 },
+      colors: ['#2C6E49', '#FAF8F5'],
+    });
+  };
+
+  const handleToggleSound = () => {
+    const next = !soundEnabled;
+    setSoundEnabled(next);
+    setSoundNotificationEnabled(next);
+    if (next) {
+      playCompletionChime();
+    }
+  };
 
   // File upload & notes state
   const [uploadedFile, setUploadedFile] = useState<UploadedFileItem | null>(null);
@@ -168,7 +292,8 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
     setSelectedDeck(deck);
     const questionsToUse = buildQuestionsForDeck(deck, targetCount);
     setCurrentQuestions(questionsToUse);
-    setCurrentFlashcards(deck.flashcards);
+    const flashcardsToUse = buildFlashcardsForDeck(deck, getEffectiveFlashcardCount());
+    setCurrentFlashcards(flashcardsToUse);
     setCurrentQuestionIndex(0);
     setSelectedOption(null);
     setIsAnswerSubmitted(false);
@@ -545,6 +670,20 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
             <Upload className="w-4 h-4" />
             <span>Upload File / Paste Notes</span>
           </button>
+
+          <button
+            type="button"
+            onClick={handleToggleSound}
+            className={`p-2 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center justify-center border-l border-[#E8E4DC] dark:border-stone-800 pl-3 ${
+              soundEnabled
+                ? 'text-[#2C6E49] dark:text-emerald-400 hover:bg-[#2C6E49]/10'
+                : 'text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'
+            }`}
+            title={soundEnabled ? 'Completion chime enabled (Click to mute)' : 'Completion chime muted (Click to enable)'}
+            aria-label={soundEnabled ? 'Mute sound notification' : 'Enable sound notification'}
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
@@ -859,63 +998,207 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
       {/* MODE 2: FLASHCARDS */}
       {activeMode === 'flashcards' && (
-        <div className="space-y-6 max-w-xl mx-auto">
-          <div className="flex items-center justify-between text-xs text-stone-500 pb-1">
-            <span>Deck: <strong className="text-stone-800">{selectedDeck.title}</strong></span>
-            <span>Card {flashcardIndex + 1} of {currentFlashcards.length}</span>
+        <div className="space-y-6 max-w-2xl mx-auto">
+          {/* Topic Switcher Pills */}
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-mono font-bold text-stone-400 uppercase tracking-wider block">
+              Active Topic:
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {allDecks.map((deck) => (
+                <button
+                  key={deck.id}
+                  onClick={() => handleSelectDeck(deck)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 border ${
+                    selectedDeck.id === deck.id
+                      ? 'bg-[#2C6E49] text-white border-[#2C6E49] shadow-xs'
+                      : 'bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 border-[#E8E4DC] dark:border-stone-800 hover:border-stone-400'
+                  }`}
+                >
+                  <span>{deck.title}</span>
+                  {deck.isCustom && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-white/20">Custom</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div
-            onClick={() => setIsFlipped(!isFlipped)}
-            className="w-full min-h-[240px] bg-white border border-[#E8E4DC] hover:border-stone-400 rounded-3xl p-8 flex flex-col justify-between items-center text-center cursor-pointer transition shadow-sm select-none"
-          >
-            <div className="w-full flex items-center justify-between text-[11px] font-mono text-stone-400">
-              <span className="px-2.5 py-0.5 rounded-full bg-[#FAF8F5] text-[#2C6E49] font-bold uppercase border border-[#E8E4DC]">
-                {isFlipped ? 'Answer / Code Citation' : 'Concept / Provision'}
-              </span>
-              <span>Click card to flip 🔄</span>
+          {/* Controls Bar: Count Selection + Generation + Download */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#FAF8F5] dark:bg-stone-950 p-3.5 rounded-2xl border border-[#E8E4DC] dark:border-stone-800 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-stone-700 dark:text-stone-300">Cards:</span>
+              <div className="flex items-center gap-1 bg-white dark:bg-stone-900 p-1 rounded-xl border border-[#E8E4DC] dark:border-stone-800">
+                {([15, 25, 50] as const).map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => handleFlashcardCountSelectionChange(count)}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer text-xs ${
+                      flashcardCountType === count
+                        ? 'bg-[#2C6E49] text-white shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-50'
+                    }`}
+                  >
+                    {count}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => handleFlashcardCountSelectionChange('custom')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer text-xs ${
+                    flashcardCountType === 'custom'
+                      ? 'bg-[#2C6E49] text-white shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-50'
+                  }`}
+                >
+                  Custom
+                </button>
+              </div>
+
+              {flashcardCountType === 'custom' && (
+                <div className="flex items-center gap-1.5 ml-1 animate-fade-in">
+                  <input
+                    type="number"
+                    min={5}
+                    max={100}
+                    value={customFlashcardCount}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 15;
+                      handleFlashcardCountSelectionChange('custom', val);
+                    }}
+                    className="w-16 px-2 py-1 text-xs font-mono font-bold rounded-lg border border-[#E8E4DC] dark:border-stone-800 bg-white dark:bg-stone-900 text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#2C6E49]"
+                  />
+                  <span className="text-[11px] text-stone-400 font-mono">cards</span>
+                </div>
+              )}
             </div>
 
-            <div className="my-auto py-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleGenerateFlashcards}
+                disabled={isGeneratingFlashcards}
+                className="px-3.5 py-1.5 rounded-xl bg-[#2C6E49] hover:bg-[#23583a] text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 transition"
+                title="Generate fresh flashcards with Gemini AI"
+              >
+                {isGeneratingFlashcards ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Generate Cards</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleShuffleFlashcards}
+                className="p-2 rounded-xl bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition cursor-pointer"
+                title="Shuffle flashcards"
+              >
+                <Shuffle className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadFlashcards}
+                className="px-3 py-1.5 rounded-xl bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition"
+                title="Download printable Flashcards PDF"
+              >
+                <Download className="w-3.5 h-3.5 text-[#2C6E49] dark:text-emerald-400" />
+                <span className="hidden sm:inline">PDF</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Progress bar and counter */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs text-stone-500">
+              <span className="font-medium text-stone-700 dark:text-stone-300">{selectedDeck.title}</span>
+              <span className="font-mono text-xs font-semibold text-[#2C6E49] dark:text-emerald-400">
+                Card {flashcardIndex + 1} of {currentFlashcards.length}
+              </span>
+            </div>
+            <div className="w-full bg-[#E8E4DC] dark:bg-stone-800 h-1.5 rounded-full overflow-hidden">
+              <div
+                className="bg-[#2C6E49] dark:bg-emerald-500 h-full transition-all duration-300 rounded-full"
+                style={{
+                  width: `${((flashcardIndex + 1) / Math.max(1, currentFlashcards.length)) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Flip Card */}
+          <div
+            onClick={() => setIsFlipped(!isFlipped)}
+            className="w-full min-h-[260px] bg-white dark:bg-stone-900 border-2 border-[#E8E4DC] dark:border-stone-800 hover:border-[#2C6E49]/60 dark:hover:border-emerald-500/60 rounded-3xl p-7 flex flex-col justify-between items-center text-center cursor-pointer transition-all shadow-sm select-none group"
+          >
+            <div className="w-full flex items-center justify-between text-[11px] font-mono">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#FAF8F5] dark:bg-stone-950 text-[#2C6E49] dark:text-emerald-400 font-bold uppercase border border-[#E8E4DC] dark:border-stone-800">
+                {isFlipped ? 'Answer / Code Provision' : 'Concept / Provision'}
+              </span>
+              <span className="text-stone-400 dark:text-stone-500 flex items-center gap-1 group-hover:text-stone-600 transition">
+                <span>Click or Press Space to flip</span>
+                <RotateCcw className="w-3 h-3" />
+              </span>
+            </div>
+
+            <div className="my-auto py-5 px-3">
               {!isFlipped ? (
-                <h3 className="text-base md:text-lg font-bold text-stone-900 leading-relaxed">
+                <h3 className="text-base md:text-xl font-bold text-stone-900 dark:text-stone-100 leading-relaxed font-serif m-0">
                   {currentCard?.front || 'No flashcard available'}
                 </h3>
               ) : (
-                <div className="space-y-2">
-                  <p className="text-base md:text-lg font-semibold text-[#2C6E49] dark:text-emerald-400 leading-relaxed">
+                <div className="space-y-2.5 animate-fade-in">
+                  <p className="text-base md:text-lg font-semibold text-[#1B4332] dark:text-emerald-300 leading-relaxed m-0 font-serif">
                     {currentCard?.back}
                   </p>
-                  <span className="text-[11px] text-stone-400 dark:text-stone-500 font-mono block">
-                    Category: {currentCard?.category}
-                  </span>
+                  {currentCard?.category && (
+                    <span className="text-[11px] text-stone-400 dark:text-stone-500 font-mono block">
+                      Category: {currentCard.category}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
 
             <div className="text-[11px] text-stone-400 dark:text-stone-500 font-mono">
-              Tap anywhere to reveal
+              {isFlipped ? '✅ Click to flip back' : '💡 Click to reveal answer'}
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-4 pt-1">
+          {/* Navigation Controls */}
+          <div className="flex items-center justify-between gap-3 pt-1">
             <button
               onClick={() => {
                 setIsFlipped(false);
-                setFlashcardIndex(prev => Math.max(0, prev - 1));
+                setFlashcardIndex((prev) => Math.max(0, prev - 1));
               }}
               disabled={flashcardIndex === 0}
-              className="px-4 py-2 rounded-xl bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 disabled:opacity-40 text-xs font-semibold cursor-pointer"
+              className="px-5 py-2.5 rounded-xl bg-white dark:bg-stone-900 border border-[#E8E4DC] dark:border-stone-800 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 disabled:opacity-30 text-xs font-semibold cursor-pointer transition"
             >
-              ← Previous
+              ← Previous Card
+            </button>
+
+            <button
+              onClick={() => setIsFlipped(!isFlipped)}
+              className="px-4 py-2 rounded-xl text-xs font-mono font-bold text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition cursor-pointer"
+            >
+              Flip 🔄
             </button>
 
             <button
               onClick={() => {
                 setIsFlipped(false);
-                setFlashcardIndex(prev => (prev + 1) % currentFlashcards.length);
+                setFlashcardIndex((prev) => (prev + 1) % currentFlashcards.length);
               }}
-              className="px-6 py-2 rounded-xl bg-[#2C6E49] hover:bg-[#23583a] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white font-semibold text-xs cursor-pointer shadow-xs"
+              className="px-6 py-2.5 rounded-xl bg-[#2C6E49] hover:bg-[#23583a] dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white font-semibold text-xs cursor-pointer shadow-xs transition"
             >
               Next Card →
             </button>
@@ -932,7 +1215,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                 Upload Lessons & Notes to Generate Quizzes
               </h3>
               <p className="text-xs text-stone-500 dark:text-stone-400 m-0">
-                Supports PDF reviewers, Word files (.docx), photos of book pages (.jpg/.png), or text.
+                Supports PDF reviewers, Word documents (.docx), photos of book pages (.jpg/.png), or study notes (Supports up to 200MB).
               </p>
             </div>
             {apiKey ? (
@@ -968,8 +1251,8 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                 </p>
                 <p className="text-[11px] text-stone-500 dark:text-stone-400 m-0">
                   {uploadedFile
-                    ? `${Math.round(uploadedFile.size / 1024)} KB ready for quiz extraction`
-                    : 'Upload your syllabus, National Building Code PDF, or lecture screenshots'}
+                    ? `${uploadedFile.size > 1024 * 1024 ? (uploadedFile.size / (1024 * 1024)).toFixed(1) + ' MB' : Math.round(uploadedFile.size / 1024) + ' KB'} ready for extraction`
+                    : 'Upload your syllabus, National Building Code PDF, or lecture screenshots (Supports up to 200MB)'}
                 </p>
               </div>
             </div>
@@ -983,7 +1266,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                   <div>
                     <span className="font-bold text-stone-900 dark:text-stone-100">{uploadedFile.name}</span>
                     <span className="text-[11px] text-stone-500 dark:text-stone-400 block">
-                      {(uploadedFile.size / 1024).toFixed(1)} KB • {uploadedFile.mimeType}
+                      {uploadedFile.size > 1024 * 1024 ? (uploadedFile.size / (1024 * 1024)).toFixed(1) + ' MB' : (uploadedFile.size / 1024).toFixed(1) + ' KB'} • {uploadedFile.mimeType}
                     </span>
                   </div>
                 </div>

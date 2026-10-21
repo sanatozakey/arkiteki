@@ -119,4 +119,79 @@ describe('Task 1: Lesson Quizzes & Flashcards System', () => {
       expect(historyDeck!.questions.length).toBeGreaterThanOrEqual(15);
     });
   });
+
+  describe('200MB File Upload Limit & Validation', () => {
+    it('rejects files exceeding 200MB with a clear 200MB limit error', async () => {
+      const { processUploadedFile } = await import('../src/utils/fileParser');
+      // Create a mock File object with size > 200MB (209,715,200 bytes)
+      const oversizedFile = {
+        name: 'Review of Related Literature.pdf',
+        size: 200 * 1024 * 1024 + 1, // 209,715,201 bytes
+        type: 'application/pdf',
+      } as unknown as File;
+
+      await expect(processUploadedFile(oversizedFile)).rejects.toThrow(
+        'File "Review of Related Literature.pdf" exceeds the maximum upload limit of 200MB.'
+      );
+    });
+
+    it('accepts files within the 200MB limit', async () => {
+      const { processUploadedFile } = await import('../src/utils/fileParser');
+      // Create a mock text File object within 200MB
+      const mockBlob = new Blob(['PD 1096 Building Code Notes - AMBF and Setbacks'], { type: 'text/plain' });
+      const validFile = new File([mockBlob], 'Building_Code_Notes.txt', { type: 'text/plain' });
+
+      const result = await processUploadedFile(validFile);
+      expect(result.name).toBe('Building_Code_Notes.txt');
+      expect(result.size).toBeLessThanOrEqual(200 * 1024 * 1024);
+      expect(result.rawText).toContain('PD 1096');
+    });
+  });
+
+  describe('Independent Flashcard Generation & Strict Count Controls', () => {
+    it('generates exactly 15 flashcards when 15 is requested', async () => {
+      const { generateFlashcardsFromNotes } = await import('../src/utils/quizGenerator');
+      const text = 'Batas Pambansa Blg 344: 1:12 slope, 0.80m doors, 1.50m turning space.';
+      const cards = generateFlashcardsFromNotes(text, 'BP 344', 15);
+      expect(cards).toHaveLength(15);
+    });
+
+    it('generates exactly 25 flashcards when 25 is requested', async () => {
+      const { generateFlashcardsFromNotes } = await import('../src/utils/quizGenerator');
+      const text = 'PD 1096 National Building Code: R-1 setbacks, TOSL, USA, AMBF.';
+      const cards = generateFlashcardsFromNotes(text, 'PD 1096', 25);
+      expect(cards).toHaveLength(25);
+    });
+
+    it('generates exactly 50 flashcards when 50 is requested', async () => {
+      const { generateFlashcardsFromNotes } = await import('../src/utils/quizGenerator');
+      const text = 'History of Architecture: Leandro Locsin, Francisco Mañosa, Juan Nakpil.';
+      const cards = generateFlashcardsFromNotes(text, 'Architecture History', 50);
+      expect(cards).toHaveLength(50);
+    });
+
+    it('generates exact custom flashcard counts (e.g. 18 cards)', async () => {
+      const { generateFlashcardsFromNotes } = await import('../src/utils/quizGenerator');
+      const text = 'Architectural Licensure Review notes.';
+      const cards = generateFlashcardsFromNotes(text, 'Review', 18);
+      expect(cards).toHaveLength(18);
+    });
+  });
+
+  describe('Subtle Completion Sound Notification', () => {
+    it('persists and retrieves sound notification preference in localStorage', async () => {
+      const { isSoundNotificationEnabled, setSoundNotificationEnabled } = await import('../src/utils/soundNotification');
+      
+      setSoundNotificationEnabled(false);
+      expect(isSoundNotificationEnabled()).toBe(false);
+
+      setSoundNotificationEnabled(true);
+      expect(isSoundNotificationEnabled()).toBe(true);
+    });
+
+    it('safely attempts to play completion chime without throwing in testing environment', async () => {
+      const { playCompletionChime } = await import('../src/utils/soundNotification');
+      expect(() => playCompletionChime()).not.toThrow();
+    });
+  });
 });

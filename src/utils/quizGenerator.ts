@@ -8,9 +8,11 @@ import type { QuizQuestion, FlashcardItem } from '../types';
 export function generateQuizFromNotes(
   text: string,
   topicTitle: string = 'Custom Lecture Review',
-  targetQuestionCount: number = 15
+  targetQuestionCount: number = 15,
+  targetFlashcardCount?: number
 ): { questions: QuizQuestion[]; flashcards: FlashcardItem[] } {
   const cleanCount = Math.max(5, Math.min(targetQuestionCount, 100));
+  const cleanFlashcardCount = targetFlashcardCount ? Math.max(5, Math.min(targetFlashcardCount, 100)) : Math.min(cleanCount, 25);
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -148,9 +150,10 @@ export function generateQuizFromNotes(
     { term: 'PD 1096 Eaves and Canopy Clearance above Sidewalk', definition: 'Minimum clear vertical height of 3.00 meters above the established sidewalk grade.', code: 'PD 1096 Section 1004', difficulty: 'Board-Exam Level' }
   ];
 
-  // Fill keyItems up to cleanCount from knowledge bank if needed
+  // Fill keyItems up to required count from knowledge bank if needed
+  const neededItems = Math.max(cleanCount, cleanFlashcardCount);
   let bankIdx = 0;
-  while (keyItems.length < cleanCount && bankIdx < ARCHITECTURAL_KNOWLEDGE_BANK.length) {
+  while (keyItems.length < neededItems && bankIdx < ARCHITECTURAL_KNOWLEDGE_BANK.length) {
     const item = ARCHITECTURAL_KNOWLEDGE_BANK[bankIdx];
     if (!keyItems.some((k) => k.term === item.term)) {
       keyItems.push(item);
@@ -158,10 +161,9 @@ export function generateQuizFromNotes(
     bankIdx++;
   }
 
-  // 4. Construct Flashcards (up to 25)
+  // 4. Construct Flashcards (grounded to requested cleanFlashcardCount)
   const flashcards: FlashcardItem[] = [];
-  const numFlashcards = Math.min(cleanCount, 25);
-  for (let i = 0; i < Math.min(keyItems.length, numFlashcards); i++) {
+  for (let i = 0; i < Math.min(keyItems.length, cleanFlashcardCount); i++) {
     const item = keyItems[i];
     flashcards.push({
       id: `fc-gen-${i + 1}`,
@@ -261,3 +263,16 @@ ${notesText.trim().slice(0, 4000)}
 
 Generate the complete exam now with answer keys at the bottom!`;
 }
+
+/**
+ * Generates an exact count of grounded flashcards from notes or architectural bank
+ */
+export function generateFlashcardsFromNotes(
+  notesText: string,
+  topicTitle: string = 'Architecture Review',
+  targetCount: number = 15
+): FlashcardItem[] {
+  const result = generateQuizFromNotes(notesText, topicTitle, Math.max(5, targetCount), targetCount);
+  return result.flashcards.slice(0, targetCount);
+}
+

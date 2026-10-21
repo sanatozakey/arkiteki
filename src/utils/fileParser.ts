@@ -11,16 +11,23 @@ import type { UploadedFileItem, DetectedDocumentMetadata } from '../types';
 export async function processUploadedFile(file: File): Promise<UploadedFileItem> {
   const mimeType = file.type || getMimeTypeFromExtension(file.name);
 
-  // Validate file size (max 25MB)
-  const MAX_SIZE_BYTES = 25 * 1024 * 1024;
+  // Validate file size: maximum 200 MiB (209,715,200 bytes)
+  const MAX_SIZE_BYTES = 200 * 1024 * 1024;
   if (file.size > MAX_SIZE_BYTES) {
-    throw new Error(`File "${file.name}" exceeds the maximum upload limit of 25MB.`);
+    throw new Error(`File "${file.name}" exceeds the maximum upload limit of 200MB.`);
   }
+
+  // Files larger than 20MB are processed purely via direct text/structure extraction
+  // to avoid consuming hundreds of megabytes of browser RAM with base64 strings
+  // and to respect Google Gemini API's 20MB inline_data HTTP request payload ceiling.
+  const MULTIMODAL_INLINE_LIMIT = 20 * 1024 * 1024;
 
   // 1. Text files (.txt, .md, text/*)
   if (mimeType.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
     const textContent = await file.text();
-    const base64Data = btoa(unescape(encodeURIComponent(textContent)));
+    const base64Data = file.size <= MULTIMODAL_INLINE_LIMIT 
+      ? btoa(unescape(encodeURIComponent(textContent))) 
+      : undefined;
     const metadata = analyzeTextContentLocally(textContent, file.name);
 
     return {
@@ -59,7 +66,9 @@ export async function processUploadedFile(file: File): Promise<UploadedFileItem>
 
         const fullExtractedText = extractedLines.join('\n');
         if (fullExtractedText.trim().length > 20) {
-          const base64Data = btoa(unescape(encodeURIComponent(fullExtractedText)));
+          const base64Data = file.size <= MULTIMODAL_INLINE_LIMIT
+            ? btoa(unescape(encodeURIComponent(fullExtractedText)))
+            : undefined;
           const metadata = analyzeTextContentLocally(fullExtractedText, file.name);
 
           return {
@@ -79,19 +88,39 @@ export async function processUploadedFile(file: File): Promise<UploadedFileItem>
     }
   }
 
-  // 3. Binary files (PDF, Images, etc.): Read arrayBuffer and data URL
+  // 3. Binary files (PDF, Images, etc.)
   const arrayBuffer = await file.arrayBuffer();
-  const base64Data = arrayBufferToBase64(arrayBuffer);
-  const dataUrl = `data:${mimeType};base64,${base64Data}`;
-
   let extractedPdfText = '';
 
   if (mimeType === 'application/pdf') {
     extractedPdfText = await extractPdfText(arrayBuffer);
   }
 
-  const rawTextToUse = extractedPdfText || (mimeType.startsWith('image/') ? undefined : undefined);
+  // Only produce base64 strings and dataUrls for files within the multimodal inline threshold
+  // to prevent out-of-memory heap allocations on 50MB-200MB documents
+  let base64Data: string | undefined;
+  let dataUrl: string | undefined;
+
+  if (file.size <= MULTIMODAL_INLINE_LIMIT) {
+    base64Data = arrayBufferToBase64(arrayBuffer);
+    dataUrl = `data:${mimeType};base64,${base64Data}`;
+  }
+
+  const rawTextToUse = extractedPdfText.trim().length > 0 ? extractedPdfText : undefined;
   const metadata = analyzeTextContentLocally(extractedPdfText || '', file.name);
+
+  const formattedSize = file.size > 1024 * 1024
+    ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.round(file.size / 1024)} KB`;
+
+  let textPreview = '';
+  if (extractedPdfText.trim().length > 0) {
+    textPreview = extractedPdfText.slice(0, 1000) + (extractedPdfText.length > 1000 ? '...' : '');
+  } else if (mimeType === 'application/pdf') {
+    textPreview = `[Attached PDF ${file.name} (${formattedSize}) - Scanned/Visual content. If no text is extracted, ensure document has searchable text or is under 20MB for multimodal OCR]`;
+  } else {
+    textPreview = `[Attached ${file.name} (${formattedSize}) - multimodal processing enabled]`;
+  }
 
   return {
     name: file.name,
@@ -101,9 +130,7 @@ export async function processUploadedFile(file: File): Promise<UploadedFileItem>
     base64Data,
     dataUrl,
     rawText: rawTextToUse,
-    textPreview: extractedPdfText
-      ? extractedPdfText.slice(0, 1000) + (extractedPdfText.length > 1000 ? '...' : '')
-      : `[Attached ${file.name} (${Math.round(file.size / 1024)} KB) - multimodal processing enabled]`,
+    textPreview,
     detectedMetadata: metadata,
   };
 }
