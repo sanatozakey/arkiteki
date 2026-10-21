@@ -21,7 +21,12 @@ export const GeminiAuthModal: React.FC<GeminiAuthModalProps> = ({
   onModelUpdated,
 }) => {
   const [apiKeyInput, setApiKeyInput] = useState(currentKey);
-  const [selectedModel, setSelectedModel] = useState(currentModel);
+  const [selectedModel, setSelectedModel] = useState(() => {
+    if (!currentModel || currentModel.includes('2.5') || currentModel.includes('3-pro')) {
+      return 'gemini-2.0-flash';
+    }
+    return currentModel;
+  });
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -43,17 +48,23 @@ export const GeminiAuthModal: React.FC<GeminiAuthModalProps> = ({
     setErrorMessage('');
 
     try {
+      // If legacy 2.5 was chosen, seamlessly use 2.0-flash
+      const modelToTest = selectedModel.includes('2.5') ? 'gemini-2.0-flash' : selectedModel;
+      if (modelToTest !== selectedModel) {
+        setSelectedModel(modelToTest);
+      }
+
       // Test lightweight call to Gemini with chosen model
       await callGeminiApi({
         apiKey: trimmed,
-        model: selectedModel,
+        model: modelToTest,
         prompt: 'Say: Gemini Connection Verified for Arkiteki Studio.',
       });
 
       setStoredGeminiKey(trimmed);
       onKeyUpdated(trimmed);
-      setStoredGeminiModel(selectedModel);
-      onModelUpdated(selectedModel);
+      setStoredGeminiModel(modelToTest);
+      onModelUpdated(modelToTest);
       setTestResult('success');
       confetti({
         particleCount: 30,

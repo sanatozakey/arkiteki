@@ -20,34 +20,33 @@ export interface GeminiModelOption {
 
 export const GEMINI_MODELS: GeminiModelOption[] = [
   {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    badge: 'Recommended',
-    tag: '⚡ 2.5 Flash',
-    description: 'Fast multimodal vision & prompt refinement. Excellent for everyday studio work.',
-  },
-  {
-    id: 'gemini-2.5-pro',
-    name: 'Gemini 2.5 Pro',
-    badge: 'Pro User • Deep Reasoning',
-    tag: '🧠 2.5 Pro',
-    description: 'Flagship reasoning model for architecture. Deep code synthesis and complex spatial planning.',
-    isPro: true,
-  },
-  {
-    id: 'gemini-3-pro-preview',
-    name: 'Gemini 3 Pro Preview',
-    badge: 'Preview • Next-Gen',
-    tag: '🚀 3 Pro',
-    description: 'Next-generation reasoning model with extended thinking for thesis and civic masterplans.',
-    isPro: true,
-  },
-  {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
-    badge: 'Standard • Lightweight',
+    badge: 'Recommended • Fast',
     tag: '⚡ 2.0 Flash',
-    description: 'Ultra-fast lightweight model for rapid iterations and testing.',
+    description: 'Latest high-speed multimodal vision & prompt refinement. Fully available for all Google accounts.',
+  },
+  {
+    id: 'gemini-1.5-flash',
+    name: 'Gemini 1.5 Flash',
+    badge: 'High Stability',
+    tag: '⚡ 1.5 Flash',
+    description: 'High capacity model with 1M token context window for large architectural books & syllabus PDFs.',
+  },
+  {
+    id: 'gemini-1.5-pro',
+    name: 'Gemini 1.5 Pro',
+    badge: 'Pro User • Deep Reasoning',
+    tag: '🧠 1.5 Pro',
+    description: 'Flagship reasoning model for Philippine building codes, structural defense, and spatial planning.',
+    isPro: true,
+  },
+  {
+    id: 'gemini-2.0-flash-lite',
+    name: 'Gemini 2.0 Flash-Lite',
+    badge: 'Lightweight',
+    tag: '⚡ 2.0 Lite',
+    description: 'Ultra-fast lightweight model for rapid iterations and flashcards.',
   },
 ];
 
@@ -74,9 +73,15 @@ export function setStoredGeminiKey(key: string): void {
 
 export function getStoredGeminiModel(): string {
   try {
-    return localStorage.getItem(MODEL_STORAGE_KEY) || 'gemini-2.5-flash';
+    const stored = localStorage.getItem(MODEL_STORAGE_KEY);
+    // Automatically migrate from any restricted 2.5 models
+    if (!stored || stored === 'gemini-2.5-flash' || stored === 'gemini-2.5-pro' || stored === 'gemini-3-pro-preview') {
+      localStorage.setItem(MODEL_STORAGE_KEY, 'gemini-2.0-flash');
+      return 'gemini-2.0-flash';
+    }
+    return stored;
   } catch {
-    return 'gemini-2.5-flash';
+    return 'gemini-2.0-flash';
   }
 }
 
@@ -104,7 +109,7 @@ export async function callGeminiApi({
   systemInstruction?: string;
   model?: string;
 }): Promise<string> {
-  const chosenModel = model || getStoredGeminiModel() || 'gemini-2.5-flash';
+  const chosenModel = model || getStoredGeminiModel() || 'gemini-2.0-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent?key=${apiKey}`;
 
   const parts: any[] = [];
@@ -163,6 +168,27 @@ export async function callGeminiApi({
   if (!response.ok) {
     const errorJson = await response.json().catch(() => ({}));
     const message = errorJson.error?.message || `HTTP ${response.status} ${response.statusText}`;
+
+    // Auto-fallback: if the requested model is no longer available to new users, restricted, or not found,
+    // seamlessly fall back to 'gemini-2.0-flash' or 'gemini-1.5-flash'!
+    if (
+      (message.includes('is no longer available to new users') ||
+        message.includes('models/gemini-2.5') ||
+        message.includes('not found') ||
+        message.includes('404')) &&
+      chosenModel !== 'gemini-2.0-flash'
+    ) {
+      console.warn(`Model ${chosenModel} unavailable (${message}). Auto-switching to gemini-2.0-flash...`);
+      setStoredGeminiModel('gemini-2.0-flash');
+      return callGeminiApi({
+        apiKey,
+        prompt,
+        fileItem,
+        systemInstruction,
+        model: 'gemini-2.0-flash',
+      });
+    }
+
     throw new Error(`Gemini API Error: ${message}`);
   }
 
@@ -458,7 +484,7 @@ export async function generateInAppStudioResult({
   prompt: string;
   fileItem?: UploadedFileItem;
 }): Promise<InAppStudioResult> {
-  const chosenModel = model || getStoredGeminiModel() || 'gemini-2.5-flash';
+  const chosenModel = model || getStoredGeminiModel() || 'gemini-2.0-flash';
 
   // Run image generation and presentation dossier concurrently
   const [imageResult, dossierResult] = await Promise.allSettled([
