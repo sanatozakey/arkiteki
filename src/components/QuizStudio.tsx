@@ -20,13 +20,15 @@ import { generateQuizFromNotes, buildGeminiExamPrompt } from '../utils/quizGener
 import { processUploadedFile } from '../utils/fileParser';
 import { generateQuizWithGemini } from '../utils/geminiApi';
 import { saveQuizScoreToSupabase } from '../utils/supabaseClient';
-import type { QuizQuestion, FlashcardItem, QuizDeck, UploadedFileItem } from '../types';
+import { generateQuizPdf, generateFlashcardsPdf } from '../utils/pdfGenerator';
+import type { QuizQuestion, FlashcardItem, QuizDeck, UploadedFileItem, QuizAttemptRecord } from '../types';
 
 interface QuizStudioProps {
   apiKey: string;
   onOpenConnectModal: () => void;
   user?: any;
   currentModel?: string;
+  initialDeck?: QuizDeck | null;
 }
 
 export const QuizStudio: React.FC<QuizStudioProps> = ({ 
@@ -34,6 +36,7 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
   onOpenConnectModal,
   user,
   currentModel,
+  initialDeck,
 }) => {
   const [activeMode, setActiveMode] = useState<'decks' | 'custom' | 'flashcards'>('decks');
 
@@ -46,6 +49,39 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
   const [quizFinished, setQuizFinished] = useState<boolean>(false);
+
+  // Configurable question count: 15, 25, 50, or custom
+  const [questionCountType, setQuestionCountType] = useState<15 | 25 | 50 | 'custom'>(15);
+  const [customQuestionCount, setCustomQuestionCount] = useState<number>(20);
+
+  const getEffectiveQuestionCount = (): number => {
+    if (questionCountType === 'custom') {
+      const val = Number(customQuestionCount);
+      if (isNaN(val) || val < 1) return 15;
+      return Math.min(Math.max(val, 5), 100);
+    }
+    return questionCountType;
+  };
+
+  // Expands deck questions up to targetCount using the high-yield Philippine Licensure Knowledge Bank
+  const buildQuestionsForDeck = (deck: QuizDeck, targetCount: number): QuizQuestion[] => {
+    if (deck.questions.length >= targetCount) {
+      return deck.questions.slice(0, targetCount);
+    }
+    const sourceText = `${deck.title}. ${deck.subject}. ${deck.description}`;
+    const { questions: filler } = generateQuizFromNotes(sourceText, deck.title, targetCount);
+    const existingQuestions = new Set(deck.questions.map((q) => q.question));
+    const merged = [...deck.questions];
+
+    for (const q of filler) {
+      if (merged.length >= targetCount) break;
+      if (!existingQuestions.has(q.question)) {
+        merged.push(q);
+        existingQuestions.add(q.question);
+      }
+    }
+    return merged.slice(0, targetCount);
+  };
 
   // Flashcards state
   const [currentFlashcards, setCurrentFlashcards] = useState<FlashcardItem[]>(ALE_REVIEW_DECKS[0].flashcards);
@@ -62,10 +98,20 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
   const [copiedPrompt, setCopiedPrompt] = useState<boolean>(false);
   const [exported, setExported] = useState<boolean>(false);
 
+  // Load initial deck if passed from ProfileView (Retake quiz)
+  useEffect(() => {
+    if (initialDeck) {
+      handleSelectDeck(initialDeck);
+      setActiveMode('decks');
+    }
+  }, [initialDeck]);
+
   // Start or reset quiz
-  const handleSelectDeck = (deck: QuizDeck) => {
+  const handleSelectDeck = (deck: QuizDeck, overrideCount?: number) => {
+    const targetCount = overrideCount ?? getEffectiveQuestionCount();
     setSelectedDeck(deck);
-    setCurrentQuestions(deck.questions);
+    const questionsToUse = buildQuestionsForDeck(deck, targetCount);
+    setCurrentQuestions(questionsToUse);
     setCurrentFlashcards(deck.flashcards);
     setCurrentQuestionIndex(0);
     setSelectedOption(null);
@@ -74,6 +120,19 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
     setQuizFinished(false);
     setFlashcardIndex(0);
     setIsFlipped(false);
+  };
+
+  const handleCountSelectionChange = (newCount: 15 | 25 | 50 | 'custom', customVal?: number) => {
+    setQuestionCountType(newCount);
+    if (customVal !== undefined) {
+      setCustomQuestionCount(customVal);
+    }
+    const count = newCount === 'custom' ? (customVal ?? customQuestionCount) : newCount;
+    // If not answered yet or quiz finished, immediately regenerate active deck items to match count
+    if (currentQuestionIndex === 0 && !isAnswerSubmitted) {
+      const updated = buildQuestionsForDeck(selectedDeck, count);
+      setCurrentQuestions(updated);
+    }
   };
 
   // Answer selection
@@ -108,6 +167,24 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
         colors: ['#2C6E49', '#C85A32', '#EAE5D9'],
       });
 
+      // Save quiz attempt locally so it immediately shows on Profile page
+      const attemptRecord: QuizAttemptRecord = {
+        id: `qa-${Date.now()}`,
+        deckId: selectedDeck.id,
+        deckTitle: selectedDeck.title,
+        score,
+        totalQuestions: currentQuestions.length,
+        percentage: Math.round((score / currentQuestions.length) * 100),
+        passed: (score / currentQuestions.length) >= 0.70,
+        timestamp: Date.now(),
+      };
+      try {
+        const prev = JSON.parse(localStorage.getItem('arkiteki_quiz_history') || '[]');
+        localStorage.setItem('arkiteki_quiz_history', JSON.stringify([attemptRecord, ...prev]));
+      } catch (e) {
+        console.warn('Failed to save to local quiz history', e);
+      }
+
       // Automatically sync score to Supabase if logged in
       if (user?.id) {
         saveQuizScoreToSupabase(user.id, {
@@ -120,6 +197,8 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
   };
 
   const handleRestartQuiz = () => {
+    const questionsToUse = buildQuestionsForDeck(selectedDeck, getEffectiveQuestionCount());
+    setCurrentQuestions(questionsToUse);
     setCurrentQuestionIndex(0);
     setSelectedOption(null);
     setIsAnswerSubmitted(false);
@@ -163,9 +242,10 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
       return;
     }
 
+    const targetCount = getEffectiveQuestionCount();
     setIsProcessingFile(true);
     setErrorMessage('');
-    setGenerationStage('Analyzing architectural study materials...');
+    setGenerationStage(`Analyzing architectural study materials for a ${targetCount}-question exam...`);
 
     try {
       let questions: QuizQuestion[] = [];
@@ -174,13 +254,14 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
       if (apiKey) {
         try {
-          setGenerationStage('Generating Philippine Board Exam questions with Gemini AI...');
+          setGenerationStage(`Generating ${targetCount} Philippine Board Exam questions with Gemini AI...`);
           const generated = await generateQuizWithGemini({
             apiKey,
             notesText: pastedNotes || undefined,
             fileItem: uploadedFile || undefined,
             topicTitle: customTopic || 'Philippine Architecture Review',
             model: currentModel,
+            questionCount: targetCount,
           });
 
           if (generated.questions && generated.questions.length > 0) {
@@ -197,9 +278,9 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
       // If Gemini wasn't used or returned no items, use client-side licensure generator
       if (questions.length === 0) {
-        setGenerationStage('Synthesizing questions with Philippine Licensure Knowledge Base...');
+        setGenerationStage(`Synthesizing ${targetCount} questions with Philippine Licensure Knowledge Base...`);
         const sourceText = pastedNotes.trim() || uploadedFile?.textPreview || customTopic;
-        const result = generateQuizFromNotes(sourceText, customTopic || 'Custom Review Notes');
+        const result = generateQuizFromNotes(sourceText, customTopic || 'Custom Review Notes', targetCount);
         questions = result.questions;
         flashcards = result.flashcards;
         badgeLabel = apiKey ? 'Local Engine' : 'Offline Mode';
@@ -382,8 +463,65 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
 
       {/* MODE 1: INTERACTIVE QUIZ */}
       {activeMode === 'decks' && (
-        <div className="space-y-6">
-          {/* Deck Selector Pills */}
+        <div className="space-y-4">
+          {/* Question Count Selector Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-[#FAF8F5] p-3 rounded-2xl border border-[#E8E4DC] text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-stone-700">Exam Question Count:</span>
+              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E8E4DC]">
+                {([15, 25, 50] as const).map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => handleCountSelectionChange(count)}
+                    className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer text-xs ${
+                      questionCountType === count
+                        ? 'bg-[#2C6E49] text-white shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                    }`}
+                  >
+                    {count} Questions
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => handleCountSelectionChange('custom')}
+                  className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer text-xs ${
+                    questionCountType === 'custom'
+                      ? 'bg-[#2C6E49] text-white shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                  }`}
+                >
+                  Custom
+                </button>
+              </div>
+            </div>
+
+            {questionCountType === 'custom' && (
+              <div className="flex items-center gap-2 animate-fade-in">
+                <span className="text-stone-500 text-xs">Items:</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={100}
+                  value={customQuestionCount}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 15;
+                    handleCountSelectionChange('custom', val);
+                  }}
+                  className="w-16 px-2.5 py-1 text-xs font-mono font-bold rounded-lg border border-[#E8E4DC] bg-white text-stone-800 focus:outline-none focus:border-[#2C6E49]"
+                />
+                <span className="text-[10px] text-stone-400 font-mono">(5 - 100 items)</span>
+              </div>
+            )}
+
+            <div className="text-[11px] text-stone-500 font-mono">
+              Exam Length: <strong className="text-[#2C6E49] font-bold">{currentQuestions.length} Questions</strong>
+            </div>
+          </div>
+
+          {/* Deck Selector & PDF Export Toolbar */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#E8E4DC] shadow-sm">
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
               <span className="text-xs text-stone-400 font-mono px-2">Topic:</span>
@@ -402,23 +540,48 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
               ))}
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-stone-400 font-mono hidden md:inline mr-1">
-                Keys [1-4] answer • [Space] next
-              </span>
+            {/* Export Sheet & PDF Download Actions */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => {
+                  const exportDeck: QuizDeck = {
+                    ...selectedDeck,
+                    questions: currentQuestions,
+                    questionCount: currentQuestions.length,
+                  };
+                  generateQuizPdf(exportDeck);
+                }}
+                title="Download Official Philippine Architecture Licensure Exam PDF with Answer Key"
+                className="text-xs text-stone-700 hover:text-[#1B4332] flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E8E4DC] bg-[#FAF8F5] hover:bg-emerald-50 hover:border-[#2C6E49]/30 cursor-pointer transition font-semibold"
+              >
+                <Download className="w-3.5 h-3.5 text-[#2C6E49]" />
+                <span>Exam PDF</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  generateFlashcardsPdf(selectedDeck);
+                }}
+                title="Download Printable Study Flashcards PDF"
+                className="text-xs text-stone-700 hover:text-[#C85A32] flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E8E4DC] bg-[#FAF8F5] hover:bg-amber-50 hover:border-[#C85A32]/30 cursor-pointer transition font-semibold"
+              >
+                <Download className="w-3.5 h-3.5 text-[#C85A32]" />
+                <span>Flashcards PDF</span>
+              </button>
 
               <button
                 onClick={handleExportReviewer}
-                title="Copy full questions, answer key, and rationales to clipboard"
-                className="text-xs text-stone-600 hover:text-stone-900 flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E8E4DC] bg-[#FAF8F5] hover:bg-stone-100 cursor-pointer transition font-medium"
+                title="Copy reviewer to clipboard"
+                className="text-xs text-stone-500 hover:text-stone-800 flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[#E8E4DC] bg-[#FAF8F5] hover:bg-stone-100 cursor-pointer transition font-medium"
               >
-                <Download className="w-3.5 h-3.5 text-[#2C6E49]" />
-                <span>{exported ? 'Copied Reviewer!' : 'Export Sheet'}</span>
+                {exported ? <Check className="w-3.5 h-3.5 text-[#2C6E49]" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{exported ? 'Copied' : 'Markdown'}</span>
               </button>
 
               <button
                 onClick={handleRestartQuiz}
-                className="text-xs text-stone-500 hover:text-stone-800 flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-stone-50 cursor-pointer"
+                className="text-xs text-stone-500 hover:text-stone-800 flex items-center gap-1 px-2.5 py-1.5 rounded-xl hover:bg-stone-50 cursor-pointer"
+                title="Restart quiz"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 <span>Reset</span>
@@ -721,6 +884,58 @@ export const QuizStudio: React.FC<QuizStudioProps> = ({
                 placeholder="e.g. Philippine National Building Code (PD 1096)"
                 className="w-full bg-[#FAF8F5] border border-[#E8E4DC] rounded-xl px-4 py-2 text-xs text-stone-800 focus:outline-none focus:border-[#2C6E49]"
               />
+            </div>
+
+            {/* Question Count Selector for Generation */}
+            <div>
+              <label className="text-xs text-stone-600 block mb-1.5 font-medium">
+                Number of Board Exam Questions to Generate
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                {([15, 25, 50] as const).map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => handleCountSelectionChange(count)}
+                    className={`px-3 py-1.5 rounded-xl font-semibold transition cursor-pointer text-xs ${
+                      questionCountType === count
+                        ? 'bg-[#2C6E49] text-white shadow-xs'
+                        : 'bg-[#FAF8F5] text-stone-600 border border-[#E8E4DC] hover:text-stone-900'
+                    }`}
+                  >
+                    {count} Questions
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => handleCountSelectionChange('custom')}
+                  className={`px-3 py-1.5 rounded-xl font-semibold transition cursor-pointer text-xs ${
+                    questionCountType === 'custom'
+                      ? 'bg-[#2C6E49] text-white shadow-xs'
+                      : 'bg-[#FAF8F5] text-stone-600 border border-[#E8E4DC] hover:text-stone-900'
+                  }`}
+                >
+                  Custom Count
+                </button>
+
+                {questionCountType === 'custom' && (
+                  <div className="flex items-center gap-1.5 ml-2">
+                    <input
+                      type="number"
+                      min={5}
+                      max={100}
+                      value={customQuestionCount}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 15;
+                        handleCountSelectionChange('custom', val);
+                      }}
+                      className="w-16 px-2.5 py-1 text-xs font-mono font-bold rounded-xl border border-[#E8E4DC] bg-white text-stone-800 focus:outline-none focus:border-[#2C6E49]"
+                    />
+                    <span className="text-[11px] text-stone-400">items</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>

@@ -1,4 +1,4 @@
-export type AppTab = 'quiz' | 'improver' | 'calculator' | 'saved';
+export type AppTab = 'quiz' | 'improver' | 'calculator' | 'profile';
 
 export interface QuizQuestion {
   id: string;
@@ -160,4 +160,36 @@ export interface PromptPreset {
   tags: string[];
   recommendedRatio: string;
   useCase: string;
+}
+
+export interface UserProfileData {
+  id: string;
+  email: string;
+  fullName: string;
+  school: string;
+  avatarUrl?: string;
+  avatarIcon?: string;
+  bio?: string;
+  targetExamYear?: string;
+  isGeminiLinked?: boolean;
+}
+
+export interface QuizAttemptRecord {
+  id: string;
+  deckId: string;
+  deckTitle: string;
+  score: number;
+  totalQuestions: number;
+  percentage: number;
+  passed: boolean;
+  timestamp: number;
+}
+
+export interface PromptHistoryItem {
+  id: string;
+  originalInput: string;
+  enhancedOutput: string;
+  timestamp: number;
+  imageUrl?: string;
+  category?: string;
 }

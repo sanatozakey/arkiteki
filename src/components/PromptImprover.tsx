@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Sparkles, 
   Copy, 
@@ -23,7 +23,7 @@ import {
   GEMINI_MODELS 
 } from '../utils/geminiApi';
 import { processUploadedFile } from '../utils/fileParser';
-import type { PromptCritiqueResult, UploadedFileItem, InAppStudioResult } from '../types';
+import type { PromptCritiqueResult, UploadedFileItem, InAppStudioResult, PromptHistoryItem } from '../types';
 
 interface PromptImproverProps {
   apiKey: string;
@@ -31,6 +31,7 @@ interface PromptImproverProps {
   onOpenConnectModal: () => void;
   currentModel: string;
   onModelUpdated: (newModel: string) => void;
+  initialPrompt?: string;
 }
 
 type TargetPlatform = 'gemini' | 'midjourney' | 'dalle' | 'stablediffusion';
@@ -41,6 +42,7 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
   onOpenConnectModal,
   currentModel,
   onModelUpdated,
+  initialPrompt,
 }) => {
   const [userInput, setUserInput] = useState(
     'modern city hall with stairs, grand public plaza, and tropical breezeway in the philippines'
@@ -108,6 +110,13 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
     }
   };
 
+  // Load initial prompt if passed from ProfileView history
+  useEffect(() => {
+    if (initialPrompt && initialPrompt.trim()) {
+      setUserInput(initialPrompt);
+    }
+  }, [initialPrompt]);
+
   // 1. Analyze & Enhance prompt
   const handleEnhance = async (promptToUse?: string) => {
     const text = promptToUse || userInput;
@@ -123,6 +132,25 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
         currentModel
       );
       setCritiqueResult(result);
+
+      // Save to prompt history for Profile view
+      try {
+        const historyItem: PromptHistoryItem = {
+          id: `ph-${Date.now()}`,
+          originalInput: text,
+          enhancedOutput: result.enhancedPrompt,
+          category: 'Prompt Enhancement',
+          timestamp: Date.now(),
+        };
+        const prev = JSON.parse(localStorage.getItem('arkiteki_prompt_history') || '[]');
+        localStorage.setItem(
+          'arkiteki_prompt_history',
+          JSON.stringify([historyItem, ...prev.filter((p: any) => p.originalInput !== text)])
+        );
+      } catch (err) {
+        console.warn('Failed to save to prompt history', err);
+      }
+
       confetti({
         particleCount: 25,
         spread: 45,
@@ -156,6 +184,22 @@ export const PromptImprover: React.FC<PromptImproverProps> = ({
       });
 
       setInAppResult(result);
+
+      // Save to prompt history with rendered image
+      try {
+        const historyItem: PromptHistoryItem = {
+          id: `ph-render-${Date.now()}`,
+          originalInput: userInput,
+          enhancedOutput: promptText,
+          imageUrl: result.imageUrl,
+          category: 'In-App 3D Render',
+          timestamp: Date.now(),
+        };
+        const prev = JSON.parse(localStorage.getItem('arkiteki_prompt_history') || '[]');
+        localStorage.setItem('arkiteki_prompt_history', JSON.stringify([historyItem, ...prev]));
+      } catch (err) {
+        console.warn('Failed to save render to prompt history', err);
+      }
 
       confetti({
         particleCount: 45,

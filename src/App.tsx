@@ -6,9 +6,10 @@ import { DimensionCalculator } from './components/DimensionCalculator';
 import { GeminiAuthModal } from './components/GeminiAuthModal';
 import { SavedPromptsModal } from './components/SavedPromptsModal';
 import { AuthModal } from './components/AuthModal';
+import { ProfileView } from './components/ProfileView';
 import { getStoredGeminiKey, getStoredGeminiModel, setStoredGeminiModel } from './utils/geminiApi';
 import { getCurrentUser, signOutUser, syncSavedPromptToSupabase } from './utils/supabaseClient';
-import type { AppTab, SavedPromptItem } from './types';
+import type { AppTab, SavedPromptItem, QuizDeck } from './types';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('quiz');
@@ -31,6 +32,9 @@ export const App: React.FC = () => {
     }
     loadUser();
   }, []);
+
+  const [targetStudioDeck, setTargetStudioDeck] = useState<QuizDeck | null>(null);
+  const [targetStudioPrompt, setTargetStudioPrompt] = useState<string>('');
 
   // LocalStorage for saved items
   const [savedPrompts, setSavedPrompts] = useState<SavedPromptItem[]>(() => {
@@ -114,6 +118,7 @@ export const App: React.FC = () => {
               onOpenConnectModal={() => setIsConnectModalOpen(true)} 
               user={user}
               currentModel={selectedModel}
+              initialDeck={targetStudioDeck}
             />
           )}
 
@@ -124,11 +129,31 @@ export const App: React.FC = () => {
               onOpenConnectModal={() => setIsConnectModalOpen(true)}
               currentModel={selectedModel}
               onModelUpdated={handleModelUpdated}
+              initialPrompt={targetStudioPrompt}
             />
           )}
 
           {activeTab === 'calculator' && (
             <DimensionCalculator />
+          )}
+
+          {activeTab === 'profile' && (
+            <ProfileView
+              user={user}
+              apiKey={apiKey}
+              currentModel={selectedModel}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onLoadPromptToStudio={(promptText) => {
+                setTargetStudioPrompt(promptText);
+                setActiveTab('improver');
+              }}
+              onLoadDeckToQuiz={(deck) => {
+                setTargetStudioDeck(deck);
+                setActiveTab('quiz');
+              }}
+              onOpenConnectModal={() => setIsConnectModalOpen(true)}
+              onModelUpdated={handleModelUpdated}
+            />
           )}
         </main>
 

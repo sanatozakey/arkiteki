@@ -592,17 +592,20 @@ export async function generateQuizWithGemini({
   fileItem,
   topicTitle = 'Architecture Review',
   model,
+  questionCount = 15,
 }: {
   apiKey: string;
   notesText?: string;
   fileItem?: UploadedFileItem;
   topicTitle?: string;
   model?: string;
+  questionCount?: number;
 }): Promise<{ questions: QuizQuestion[]; flashcards: FlashcardItem[] }> {
   const chosenModel = model || getStoredGeminiModel();
+  const numFlashcards = Math.min(questionCount, 15);
 
-  const prompt = `You are an expert reviewer for the Philippine Architecture Licensure Examination (ALE / PRC Board Exam).
-Analyze the provided study material and generate a 6-item multiple-choice exam and 4 flashcards.
+  const prompt = `You are an expert reviewer and question writer for the Philippine Architecture Licensure Examination (ALE / PRC Board of Architecture).
+Analyze the provided study material and generate a comprehensive ${questionCount}-item multiple-choice exam and ${numFlashcards} flashcards.
 
 Format your response strictly as valid JSON with no markdown wrapping or backticks:
 {

@@ -59,6 +59,12 @@ export const Header: React.FC<HeaderProps> = ({
       icon: <Calculator className="w-4 h-4 text-stone-600" />,
       badge: 'PD 1096 & BP 344'
     },
+    { 
+      id: 'profile', 
+      label: 'Studio Profile & History', 
+      icon: <User className="w-4 h-4 text-[#2C6E49]" />,
+      badge: 'Board Hub'
+    },
   ];
 
   return (
@@ -138,12 +144,13 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* User Account / Supabase Auth Button */}
+          {/* User Account / Gemini Studio Account */}
           {user ? (
             <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white border border-[#E8E4DC] shadow-xs">
-              <div 
-                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#1B4332] rounded-xl"
-                title={`Signed in as ${user.email} (${user.user_metadata?.school || 'Student'})`}
+              <button 
+                onClick={() => setActiveTab('profile')}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#1B4332] hover:bg-emerald-50 rounded-xl transition cursor-pointer"
+                title={`Studio Profile: ${user.user_metadata?.fullName || user.email}`}
               >
                 <div className="w-5 h-5 rounded-full bg-[#2C6E49] text-white flex items-center justify-center text-[10px] font-bold">
                   {(user.user_metadata?.fullName || user.email || 'A')[0].toUpperCase()}
@@ -151,7 +158,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="hidden sm:inline max-w-[100px] truncate">
                   {user.user_metadata?.fullName || user.email?.split('@')[0]}
                 </span>
-              </div>
+              </button>
 
               <div className="h-4 w-px bg-[#E8E4DC]" />
 
@@ -163,6 +170,18 @@ export const Header: React.FC<HeaderProps> = ({
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
+          ) : apiKey ? (
+            /* Gemini API Key connected acts as user account */
+            <button
+              onClick={() => setActiveTab('profile')}
+              className="flex items-center gap-1.5 p-1 px-2.5 py-1 rounded-2xl bg-white border border-[#E8E4DC] hover:border-[#2C6E49] shadow-xs text-xs font-semibold text-[#1B4332] transition cursor-pointer"
+              title="Open Studio Profile & Reviewer History"
+            >
+              <div className="w-5 h-5 rounded-full bg-[#2C6E49]/15 text-[#2C6E49] border border-[#2C6E49]/30 flex items-center justify-center text-xs">
+                🏛️
+              </div>
+              <span className="hidden sm:inline">Studio Profile</span>
+            </button>
           ) : (
             <button
               onClick={onOpenAuthModal}
