@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-warm: #FAF8F5;
+    --bg-card: #FFFFFF;
+    --border-warm: #E8E4DC;
+    --text-primary: #1F242E;
+    --text-secondary: #576071;
+    --text-muted: #848D9E;
+    --accent-sage: #2C6E49;
+    --accent-terracotta: #C85A32;
+    --accent-sand: #EAE5D9;
+  }
+
+  * {
+    border-color: var(--border-warm);
+  }
+
+  body {
+    background-color: var(--bg-warm);
+    color: var(--text-primary);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+  }
+}
+
+/* Warm architectural drafting grid pattern */
+.drafting-grid {
+  background-size: 28px 28px;
+  background-image: 
+    linear-gradient(to right, rgba(80, 70, 60, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(80, 70, 60, 0.035) 1px, transparent 1px);
+}
+
+/* Custom smooth warm scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FAF8F5;
+}
+::-webkit-scrollbar-thumb {
+  background: #DDD8CE;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C5BFB3;
+}
